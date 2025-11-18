@@ -135,8 +135,14 @@ const PreviewDialog = ({ open, file, apiBase, onClose }) => {
             <p className="text-xs text-slate-500">类型：{file.mime_type || '未知'} · 上传者：{file.owner}</p>
           </div>
           <div className="flex items-center gap-2">
-            <Badge variant="secondary">{previewLabelMap[kind] || '文件'}</Badge>
-            <Button size="sm" variant="outline" asChild>
+            {/* 类型徽标与下载按钮保持一致高度，避免顶部操作区在不同屏宽下错位 */}
+            <Badge
+              variant="secondary"
+              className="flex h-9 items-center rounded-xl px-4 text-sm font-semibold"
+            >
+              {previewLabelMap[kind] || '文件'}
+            </Badge>
+            <Button size="sm" variant="outline" className="h-9 px-4" asChild>
               <a href={downloadUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1">
                 <DownloadCloud className="h-4 w-4" />
                 下载
