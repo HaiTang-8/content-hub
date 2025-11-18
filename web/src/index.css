@@ -3,9 +3,14 @@
 @tailwind utilities;
 
 :root {
+  /* 统一圆角 token，所有 Tailwind rounded 类会引用这些变量，方便后续全局调整 */
+  /* 收紧圆角值以减少过度圆润感，保持桌面与移动端一致的视觉节奏 */
   font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   color: #0f172a;
   background-color: #f8fafc;
+  --radius-sm: 0.25rem;
+  --radius-md: 0.4rem;
+  --radius-lg: 0.6rem;
 }
 
 body {

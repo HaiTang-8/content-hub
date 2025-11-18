@@ -38,10 +38,13 @@ module.exports = {
           foreground: '#f8fafc',
         },
       },
+      // 统一圆角来源，改动 CSS 变量即可在全局保持一致风格
       borderRadius: {
-        lg: '0.75rem',
-        xl: '1rem',
-        '2xl': '1.5rem',
+        DEFAULT: 'var(--radius-md)',
+        md: 'var(--radius-md)',
+        lg: 'var(--radius-lg)',
+        xl: 'calc(var(--radius-lg) + 0.15rem)',
+        '2xl': 'calc(var(--radius-lg) + 0.3rem)',
       },
       fontFamily: {
         sans: ['Inter', ...defaultTheme.fontFamily.sans],

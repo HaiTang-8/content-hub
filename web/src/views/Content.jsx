@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import dayjs from 'dayjs'
-import { Filter, RefreshCw, Search, Share2, Trash2, Upload, X, Copy, Eye } from 'lucide-react'
+import { Filter, RefreshCw, Search, Share2, Trash2, Upload, X, Copy, Eye, DownloadCloud } from 'lucide-react'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
 import { Badge } from '../components/ui/badge'
@@ -437,14 +437,22 @@ const Content = () => {
                     <div className="text-sm text-slate-600">大小：{formatSize(f.size)}</div>
                     <div className="flex flex-wrap items-center gap-2 md:flex-nowrap">
                       <div className="flex flex-wrap gap-2 min-w-max">
-                        <a
-                          className="btn-outline inline-flex items-center gap-1 px-3 py-2"
-                          href={`${apiBase}/files/${f.id}/download`}
-                          target="_blank"
-                          rel="noreferrer"
+                        {/* 使用同一 Button 体系包裹链接并补充统一图标，确保下载操作与预览弹窗的下载样式保持一致 */}
+                        <Button
+                          asChild
+                          variant="outline"
+                          size="sm"
+                          className="gap-1 px-3 py-2"
                         >
-                          下载
-                        </a>
+                          <a
+                            href={`${apiBase}/files/${f.id}/download`}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            <DownloadCloud className="h-4 w-4" />
+                            下载
+                          </a>
+                        </Button>
                         {/* 触发授权预览弹窗，阻止未认证访问器直接命中流接口 */}
                         <Button
                           type="button"

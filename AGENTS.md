@@ -3,7 +3,7 @@
 ## work
 - 涉及文档相关的可以使用mcp中的mcp-router里面的tool,里面包含了context7和Playwright
 - 涉及到组件样式的默认使用shadcnui和tailwindcss
-- 最后的回答要有一段用于git提交的总结话语
+- 最后的回答要有一段用于git提交的总结话语(要求中文)
 - 必须使用中文回答
 - 改动代码必须要有正确详细的代码注释
 - 必须同时考虑移动端和桌面端
