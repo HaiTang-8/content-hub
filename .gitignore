@@ -1,0 +1,12 @@
+# Go
+server/data/
+server/uploads/
+server/.env
+
+# Node
+web/node_modules/
+web/.env.local
+web/dist/
+
+# Mac
+.DS_Store

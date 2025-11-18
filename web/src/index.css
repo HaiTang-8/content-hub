@@ -1,0 +1,64 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  color: #0f172a;
+  background-color: #f8fafc;
+}
+
+body {
+  @apply bg-background text-foreground antialiased min-h-screen;
+}
+
+.btn {
+  @apply inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white shadow transition hover:bg-primary/90 disabled:opacity-50 disabled:pointer-events-none;
+}
+.btn-outline {
+  @apply inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50;
+}
+.card {
+  @apply rounded-2xl border border-slate-200 bg-white p-6 shadow-card;
+}
+.badge {
+  @apply rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600;
+}
+.input {
+  @apply w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-primary focus:ring-primary;
+}
+.textarea {
+  @apply w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-primary focus:ring-primary;
+}
+
+.preview-markdown {
+  @apply space-y-3 text-slate-800;
+}
+.preview-markdown .preview-h1 {
+  @apply text-2xl font-semibold text-slate-900;
+}
+.preview-markdown .preview-h2 {
+  @apply text-xl font-semibold text-slate-900;
+}
+.preview-markdown .preview-h3 {
+  @apply text-lg font-semibold text-slate-900;
+}
+.preview-markdown .preview-paragraph,
+.preview-markdown .preview-list {
+  @apply text-sm leading-relaxed text-slate-700;
+}
+.preview-markdown .preview-list {
+  @apply list-disc space-y-1 pl-5;
+}
+.preview-markdown .preview-link {
+  @apply text-primary underline decoration-primary/50 underline-offset-2;
+}
+.preview-markdown .preview-code-inline {
+  @apply rounded bg-slate-200 px-1 py-0.5 text-[13px] font-mono text-slate-800;
+}
+.preview-markdown .preview-code-block {
+  @apply rounded-xl bg-slate-900 px-4 py-3 text-xs leading-relaxed text-slate-100 overflow-auto;
+}
+.preview-markdown .preview-gap {
+  @apply h-3;
+}
