@@ -48,6 +48,36 @@ const UploadModal = ({ open, onClose, onUploaded }) => {
   const [text, setText] = useState('')
   const [description, setDescription] = useState('')
   const [uploading, setUploading] = useState(false)
+  const [isDraggingFile, setIsDraggingFile] = useState(false)
+
+  // 统一封装文件选择逻辑，供点击选择和拖拽两种方式复用
+  const assignFile = (nextFile) => {
+    if (!nextFile) return
+    setFile(nextFile)
+    toast.success('已选中文件', { description: nextFile.name })
+  }
+
+  const handleDragOver = (event) => {
+    event.preventDefault()
+    event.stopPropagation()
+    setIsDraggingFile(true)
+  }
+
+  const handleDragLeave = (event) => {
+    event.preventDefault()
+    event.stopPropagation()
+    setIsDraggingFile(false)
+  }
+
+  const handleDrop = (event) => {
+    event.preventDefault()
+    event.stopPropagation()
+    setIsDraggingFile(false)
+    const droppedFile = event.dataTransfer?.files?.[0]
+    if (droppedFile) {
+      assignFile(droppedFile)
+    }
+  }
 
   const handleUpload = async (e) => {
     e.preventDefault()
@@ -97,8 +127,16 @@ const UploadModal = ({ open, onClose, onUploaded }) => {
         <form className="space-y-4 px-6 py-5" onSubmit={handleUpload}>
           <div className="space-y-2">
             <Label className="text-xs uppercase tracking-wide text-slate-500">上传文件</Label>
-            <label className="flex h-32 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 text-sm text-slate-500 transition hover:border-primary hover:bg-primary/5">
-              <input type="file" className="hidden" onChange={(e) => setFile(e.target.files[0])} />
+            <label
+              className={`flex h-32 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed text-sm transition ${
+                isDraggingFile ? 'border-primary bg-primary/5 text-primary' : 'border-slate-200 bg-slate-50 text-slate-500 hover:border-primary hover:bg-primary/5'
+              }`}
+              onDragOver={handleDragOver}
+              onDragEnter={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+            >
+              <input type="file" className="hidden" onChange={(e) => assignFile(e.target.files[0])} />
               <Upload className="mb-2 h-6 w-6 text-primary" />
               {file ? <span className="font-medium text-slate-700">{file.name}</span> : <span>点击或拖入文件</span>}
             </label>
