@@ -412,7 +412,7 @@ const Content = () => {
               return (
                 <Card key={f.id} className="flex h-full flex-col">
                   <CardHeader className="pb-3">
-                    <div className="flex items-start gap-3">
+                    <div className="flex items-start justify-between gap-3">
                       <div className="space-y-1 min-w-0">
                         <CardTitle
                           className="text-lg leading-tight truncate"
@@ -424,6 +424,7 @@ const Content = () => {
                           {f.description || '无描述'}
                         </CardDescription>
                       </div>
+                      {/* 将类型徽章固定在卡片右侧，避免随标题长度波动导致布局抖动 */}
                       <Badge variant="secondary" className="flex-shrink-0 self-start">
                         {getTypeLabel(type)}
                       </Badge>
