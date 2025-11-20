@@ -10,7 +10,8 @@ import { toast } from 'sonner'
 const Login = () => {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
-  const [remember, setRemember] = useState(false)
+  // 默认勾选 30 天自动登录，减少频繁输入凭证
+  const [remember, setRemember] = useState(true)
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
 
