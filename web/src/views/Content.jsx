@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import dayjs from 'dayjs'
-import { Filter, RefreshCw, Search, Share2, Trash2, Upload, X, Copy, Eye, DownloadCloud } from 'lucide-react'
+import { Filter, RefreshCw, Search, Share2, Trash2, Upload, X, Copy, Eye, DownloadCloud, ShieldCheck, Clock, Lock, Users } from 'lucide-react'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
 import { Badge } from '../components/ui/badge'
@@ -182,11 +182,170 @@ const ConfirmDialog = ({ open, title, description, confirmText = '确认', onCon
   )
 }
 
+const ShareDialog = ({ open, file, onClose, onCreate }) => {
+  const [requireLogin, setRequireLogin] = useState(true)
+  const [allowUsername, setAllowUsername] = useState('')
+  const [maxViews, setMaxViews] = useState('20')
+  const [expiresInDays, setExpiresInDays] = useState('7')
+  const [submitting, setSubmitting] = useState(false)
+
+  useEffect(() => {
+    if (open) {
+      // 打开弹窗时重置默认值，保证配置可重复使用
+      setRequireLogin(true)
+      setAllowUsername('')
+      setMaxViews('20')
+      setExpiresInDays('7')
+    }
+  }, [open, file?.id])
+
+  if (!open || !file) return null
+
+  const submit = async (e) => {
+    e.preventDefault()
+    setSubmitting(true)
+    try {
+      const payload = {
+        require_login: requireLogin,
+        allow_username: allowUsername.trim() || undefined,
+        max_views: maxViews ? Number(maxViews) : undefined,
+        expires_in_days: Number(expiresInDays),
+      }
+      await onCreate(payload)
+    } catch (err) {
+      // 下沉到父级统一 toast，避免重复提示
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
+      <div className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white shadow-card">
+        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+          <div className="space-y-1">
+            <p className="text-base font-semibold text-slate-900 flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5 text-primary" /> 创建安全分享
+            </p>
+            <p className="text-sm text-slate-500">链接将打开预览页，而不是直接下载。</p>
+          </div>
+          <button className="rounded-full p-1.5 text-slate-500 hover:bg-slate-100" onClick={onClose}>
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <form className="grid gap-4 px-6 py-5 lg:grid-cols-2" onSubmit={submit}>
+          <div className="space-y-3">
+            <div>
+              <p className="text-sm font-semibold text-slate-900">分享文件</p>
+              <p className="text-xs text-slate-500">{file.filename}</p>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs uppercase tracking-wide text-slate-500">访问有效期</Label>
+              <Select value={expiresInDays} onValueChange={setExpiresInDays}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">1 天内仅可访问</SelectItem>
+                  <SelectItem value="7">7 天内仅可访问</SelectItem>
+                  <SelectItem value="30">30 天内仅可访问</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs uppercase tracking-wide text-slate-500">访问次数</Label>
+              <Input
+                type="number"
+                min={1}
+                max={1000}
+                value={maxViews}
+                onChange={(e) => setMaxViews(e.target.value)}
+                placeholder="最多可查看次数 (可为空代表不限)"
+              />
+              <p className="text-xs text-slate-500">留空表示不限次数，1-1000 之间将强制限制。</p>
+            </div>
+          </div>
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <Label className="text-xs uppercase tracking-wide text-slate-500">是否需要登录</Label>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <label className={`flex cursor-pointer items-start gap-3 rounded-xl border bg-white p-3 transition hover:border-primary/80 ${
+                  requireLogin ? 'border-primary/80 ring-2 ring-primary/10' : 'border-slate-200'
+                }`}>
+                  <input
+                    type="radio"
+                    name="share-login"
+                    value="need"
+                    checked={requireLogin}
+                    onChange={() => setRequireLogin(true)}
+                    className="mt-1 h-4 w-4 text-primary focus:ring-primary"
+                  />
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-slate-800">需要登录</p>
+                    <p className="text-xs text-slate-500 leading-relaxed">适合敏感内容，访问者需先登录系统。</p>
+                  </div>
+                </label>
+                <label className={`flex cursor-pointer items-start gap-3 rounded-xl border bg-white p-3 transition hover:border-primary/80 ${
+                  !requireLogin ? 'border-primary/80 ring-2 ring-primary/10' : 'border-slate-200'
+                }`}>
+                  <input
+                    type="radio"
+                    name="share-login"
+                    value="noneed"
+                    checked={!requireLogin}
+                    onChange={() => setRequireLogin(false)}
+                    className="mt-1 h-4 w-4 text-primary focus:ring-primary"
+                  />
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-slate-800">无需登录</p>
+                    <p className="text-xs text-slate-500 leading-relaxed">适合公开素材，请酌情使用。</p>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs uppercase tracking-wide text-slate-500">限定接收人 (可选)</Label>
+              <div className="space-y-2">
+                <Input
+                  placeholder="输入允许访问的用户名，如不限制可留空"
+                  value={allowUsername}
+                  onChange={(e) => setAllowUsername(e.target.value)}
+                  className="w-full"
+                />
+                <p className="text-xs text-slate-500 flex items-center gap-1">
+                  <Users className="h-4 w-4" /> 指定用户后必须登录，且仅该用户可打开。
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2 text-xs text-slate-500">
+              <span className="flex items-center gap-1"><Clock className="h-4 w-4" /> 访问时间范围：可选 1/7/30 天</span>
+              <span className="flex items-center gap-1"><Lock className="h-4 w-4" /> 推荐保留“需要登录”保证安全</span>
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" type="button" onClick={onClose} className="whitespace-nowrap">
+                取消
+              </Button>
+              <Button type="submit" disabled={submitting} className="whitespace-nowrap">
+                {submitting ? '生成中...' : '生成预览链接'}
+              </Button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 const Content = () => {
 	const [files, setFiles] = useState([])
 	const [loading, setLoading] = useState(true)
 	const [uploadOpen, setUploadOpen] = useState(false)
 	const [shareLink, setShareLink] = useState('')
+	const [shareTarget, setShareTarget] = useState(null)
+	const [shareDialogOpen, setShareDialogOpen] = useState(false)
 	const [pendingDelete, setPendingDelete] = useState(null)
   // 控制当前正在预览的文件，兼顾移动端全屏弹层体验
   const [previewing, setPreviewing] = useState(null)
@@ -241,34 +400,25 @@ const Content = () => {
     loadFiles()
   }, [])
 
-	const onShare = async (id) => {
+	const startShare = (file) => {
+		setShareTarget(file)
+		setShareDialogOpen(true)
+	}
+
+	const handleCreateShare = async (options) => {
+		if (!shareTarget) return
 		try {
-			const { data } = await shareFile(id)
-			const base = apiBase.replace('/api', '')
-			const link = `${base}/share/${data.share_token}`
+			const { data } = await shareFile(shareTarget.id, options)
+			const link = `${window.location.origin}${data.preview_path}`
 			setShareLink(link)
-			// 优先尝试自动复制，让移动端用户也能一次完成操作
+			setShareDialogOpen(false)
 			const copied = await copyToClipboard(link)
 			if (copied) {
-				toast.success('分享链接已复制到剪贴板', { description: link })
+				toast.success('已生成预览链接并复制', { description: link })
 			} else {
-				toast('已生成分享链接', {
-					description: '若未自动复制，可点击下方复制按钮或手动选中链接',
-					action: {
-						label: '复制',
-						onClick: async () => {
-							const ok = await copyToClipboard(link)
-							if (ok) {
-								toast.success('已复制到剪贴板', { description: link })
-							} else {
-								toast.error('复制失败，请手动复制')
-							}
-						},
-					},
-				})
+				toast.success('已生成预览链接', { description: '未自动复制时可点复制按钮' })
 			}
 		} catch (err) {
-			setShareLink('')
 			toast.error(err.response?.data?.error || err.message, { description: '生成分享链接失败' })
 		}
 	}
@@ -392,7 +542,7 @@ const Content = () => {
 
 	{shareLink && (
 		<div className="mt-4 space-y-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-			<p className="text-sm font-semibold text-slate-900">分享链接</p>
+			<p className="text-sm font-semibold text-slate-900">预览分享链接</p>
 			<div className="flex flex-col gap-2 sm:flex-row sm:items-center">
 				<Input value={shareLink} readOnly className="font-mono text-xs sm:text-sm flex-1" />
 				<Button variant="outline" size="sm" onClick={copyShareLink} className="gap-2">
@@ -400,7 +550,7 @@ const Content = () => {
 					复制链接
 				</Button>
 			</div>
-			<p className="text-xs text-slate-500">长按或选中即可复制，顶部通知会提示复制结果。</p>
+			<p className="text-xs text-slate-500">打开后进入预览界面，遵循登录/次数/时间等限制。</p>
 		</div>
 	)}
 
@@ -471,10 +621,10 @@ const Content = () => {
                         </Button>
                       </div>
                       <div className="flex gap-2 flex-nowrap flex-shrink-0">
-                        <Button type="button" size="sm" onClick={() => onShare(f.id)} className="gap-2 whitespace-nowrap">
-                          <Share2 className="h-4 w-4" />
-                          分享
-                        </Button>
+						<Button type="button" size="sm" onClick={() => startShare(f)} className="gap-2 whitespace-nowrap">
+							<Share2 className="h-4 w-4" />
+							分享
+						</Button>
                         {canDelete && (
                           <Button
                             variant="destructive"
@@ -498,12 +648,18 @@ const Content = () => {
           <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-10 text-center text-sm text-slate-500">
             还没有内容，点击右上角“上传”添加吧。
           </div>
-        )}
-      </div>
-      <UploadModal open={uploadOpen} onClose={() => setUploadOpen(false)} onUploaded={loadFiles} />
-      <ConfirmDialog
-        open={confirmConfig.open}
-        title={confirmConfig.title}
+		)}
+	</div>
+	<UploadModal open={uploadOpen} onClose={() => setUploadOpen(false)} onUploaded={loadFiles} />
+	<ShareDialog
+		open={shareDialogOpen}
+		file={shareTarget}
+		onClose={() => setShareDialogOpen(false)}
+		onCreate={handleCreateShare}
+	/>
+	<ConfirmDialog
+		open={confirmConfig.open}
+		title={confirmConfig.title}
         description={confirmConfig.description}
         confirmText={confirmConfig.confirmText}
         onCancel={() => setPendingDelete(null)}

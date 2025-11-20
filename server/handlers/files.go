@@ -13,7 +13,6 @@ import (
 	"content-hub/server/config"
 	"content-hub/server/models"
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -113,38 +112,6 @@ func DownloadFile(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var f models.File
 		if err := db.First(&f, c.Param("id")).Error; err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
-			return
-		}
-		c.FileAttachment(f.Path, f.Filename)
-	}
-}
-
-// ShareFile creates or returns an existing public link.
-func ShareFile(db *gorm.DB) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		var f models.File
-		if err := db.First(&f, c.Param("id")).Error; err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
-			return
-		}
-		if f.PublicLink == "" {
-			f.PublicLink = uuid.NewString()
-			if err := db.Save(&f).Error; err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-				return
-			}
-		}
-		c.JSON(http.StatusOK, gin.H{"share_token": f.PublicLink})
-	}
-}
-
-// DownloadByToken allows public download without auth.
-func DownloadByToken(db *gorm.DB) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		token := c.Param("token")
-		var f models.File
-		if err := db.Where("public_link = ?", token).First(&f).Error; err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 			return
 		}

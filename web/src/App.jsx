@@ -1,9 +1,10 @@
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import Login from './views/Login'
 import Content from './views/Content'
 import UserManagement from './views/UserManagement'
 import Shell from './views/Shell'
 import { useAuthStore } from './store/auth'
+import SharePreview from './views/SharePreview'
 
 const ProtectedRoute = ({ children }) => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
@@ -15,7 +16,10 @@ const ProtectedRoute = ({ children }) => {
 
 const AuthRedirect = ({ children }) => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
-  return isAuthenticated ? <Navigate to="/" replace /> : children
+  const location = useLocation()
+  const params = new URLSearchParams(location.search)
+  const redirect = params.get('redirect')
+  return isAuthenticated ? <Navigate to={redirect || '/'} replace /> : children
 }
 
 const AdminRoute = ({ children }) => {
@@ -55,6 +59,7 @@ function App() {
             </AuthRedirect>
           }
         />
+        <Route path="/preview/:token" element={<SharePreview />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

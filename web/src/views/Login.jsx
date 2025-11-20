@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { Button } from '../components/ui/button'
 import { Card, CardDescription, CardHeader, CardTitle, CardContent } from '../components/ui/card'
 import { Input } from '../components/ui/input'
@@ -14,6 +14,8 @@ const Login = () => {
   const [remember, setRemember] = useState(true)
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
+  const location = useLocation()
+  const redirect = new URLSearchParams(location.search).get('redirect')
 
   const submit = async (e) => {
     e.preventDefault()
@@ -23,7 +25,8 @@ const Login = () => {
       await login(username, password, remember)
       // 登录结果用 toast 呈现，避免在移动端撑开布局
       toast.success('登录成功')
-      navigate('/')
+      // 登录后优先回跳到 redirect，方便从分享预览等受限页面返回
+      navigate(redirect || '/')
     } catch (err) {
       toast.error(err.response?.data?.error || err.message, { description: '请检查用户名或密码' })
     } finally {
@@ -106,7 +109,6 @@ const Login = () => {
             <Button className="w-full" type="submit" disabled={loading}>
               {loading ? '登录中...' : '登录'}
             </Button>
-            <p className="text-xs text-slate-500">默认管理员 admin / admin123（可在后端环境变量覆盖）</p>
           </form>
         </CardContent>
       </Card>

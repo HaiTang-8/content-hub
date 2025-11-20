@@ -24,6 +24,9 @@ func SetupRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 	api := r.Group("/api")
 	{
 		api.POST("/login", handlers.Login(db, cfg))
+		// 分享预览接口：根据分享策略可选登录
+		api.GET("/shares/:token", handlers.GetShareMeta(db, cfg))
+		api.GET("/shares/:token/stream", handlers.StreamShare(db, cfg))
 
 		authorized := api.Group("")
 		authorized.Use(middleware.AuthRequired(cfg))
@@ -35,7 +38,7 @@ func SetupRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 		authorized.GET("/files/:id/download", handlers.DownloadFile(db))
 		authorized.GET("/files/:id/stream", handlers.StreamFile(db))
 		authorized.DELETE("/files/:id", handlers.DeleteFile(db))
-		authorized.POST("/files/:id/share", handlers.ShareFile(db))
+		authorized.POST("/files/:id/share", handlers.CreateShare(db, cfg))
 
 		// admin
 		admin := authorized.Group("/admin")
@@ -47,8 +50,8 @@ func SetupRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 		admin.POST("/users/:id/reset-password", handlers.ResetPassword(db))
 	}
 
-	// public share endpoint
-	r.GET("/share/:token", handlers.DownloadByToken(db))
+	// legacy download 地址不再使用，返回提示，避免暴露真实下载入口
+	r.GET("/share/:token", handlers.LegacyShareRedirect())
 
 	r.GET("/health", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"status": "ok"}) })
 
