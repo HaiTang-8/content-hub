@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
-import { LogOut, Menu, ShieldCheck, Users } from 'lucide-react'
+import { LogOut, Menu, ShieldCheck, Users, Share2 } from 'lucide-react'
 import { useAuthStore } from '../store/auth'
 import { Badge } from '../components/ui/badge'
 import { Button } from '../components/ui/button'
@@ -13,6 +13,7 @@ const Shell = () => {
   const navItems = [
     { to: '/', label: '内容', icon: ShieldCheck },
     { to: '/users', label: '用户管理', icon: Users, adminOnly: true },
+    { to: '/shares', label: '分享管理', icon: Share2, adminOnly: true },
   ]
 
   return (

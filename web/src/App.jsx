@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-route
 import Login from './views/Login'
 import Content from './views/Content'
 import UserManagement from './views/UserManagement'
+import ShareManage from './views/ShareManage'
 import Shell from './views/Shell'
 import { useAuthStore } from './store/auth'
 import SharePreview from './views/SharePreview'
@@ -47,6 +48,14 @@ function App() {
             element={
               <AdminRoute>
                 <UserManagement />
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/shares"
+            element={
+              <AdminRoute>
+                <ShareManage />
               </AdminRoute>
             }
           />

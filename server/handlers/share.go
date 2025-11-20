@@ -13,6 +13,7 @@ import (
 	"content-hub/server/config"
 	"content-hub/server/middleware"
 	"content-hub/server/models"
+
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
@@ -208,6 +209,71 @@ func StreamShare(db *gorm.DB, cfg *config.Config) gin.HandlerFunc {
 func LegacyShareRedirect() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.JSON(http.StatusGone, gin.H{"error": "分享链接已升级，请使用新的预览地址"})
+	}
+}
+
+type shareListItem struct {
+	Token          string     `json:"token"`
+	Filename       string     `json:"filename"`
+	FileOwner      string     `json:"file_owner"`
+	Creator        string     `json:"creator"`
+	RequireLogin   bool       `json:"require_login"`
+	AllowUsername  string     `json:"allow_username"`
+	MaxViews       *uint      `json:"max_views"`
+	ViewCount      uint       `json:"view_count"`
+	RemainingViews *uint      `json:"remaining_views"`
+	ExpiresAt      *time.Time `json:"expires_at"`
+	CreatedAt      time.Time  `json:"created_at"`
+}
+
+// ListShares 仅管理员可见，用于后台查看与治理分享链接。
+func ListShares(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var shares []models.Share
+		if err := db.
+			Preload("File").
+			Preload("File.Owner").
+			Preload("Creator").
+			Preload("AllowUser").
+			Order("created_at desc").
+			Find(&shares).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		resp := make([]shareListItem, 0, len(shares))
+		for _, s := range shares {
+			resp = append(resp, shareListItem{
+				Token:          s.Token,
+				Filename:       s.File.Filename,
+				FileOwner:      s.File.Owner.Username,
+				Creator:        s.Creator.Username,
+				RequireLogin:   s.RequireLogin,
+				AllowUsername:  optionalUsername(s.AllowUser),
+				MaxViews:       s.MaxViews,
+				ViewCount:      s.ViewCount,
+				RemainingViews: remainingViews(&s),
+				ExpiresAt:      s.ExpiresAt,
+				CreatedAt:      s.CreatedAt,
+			})
+		}
+		c.JSON(http.StatusOK, resp)
+	}
+}
+
+// RevokeShare 允许管理员撤销分享，立即失效。
+func RevokeShare(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		token := c.Param("token")
+		if token == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "missing share token"})
+			return
+		}
+		if err := db.Where("token = ?", token).Delete(&models.Share{}).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"message": "share revoked"})
 	}
 }
 

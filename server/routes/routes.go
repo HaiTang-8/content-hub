@@ -48,6 +48,8 @@ func SetupRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 		admin.DELETE("/users/:id", handlers.DeleteUser(db))
 		admin.PATCH("/users/:id/role", handlers.UpdateUserRole(db))
 		admin.POST("/users/:id/reset-password", handlers.ResetPassword(db))
+		admin.GET("/shares", handlers.ListShares(db))
+		admin.DELETE("/shares/:token", handlers.RevokeShare(db))
 	}
 
 	// legacy download 地址不再使用，返回提示，避免暴露真实下载入口
