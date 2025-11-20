@@ -1,6 +1,21 @@
 import { useEffect, useMemo, useState } from 'react'
 import dayjs from 'dayjs'
-import { Filter, RefreshCw, Search, Share2, Trash2, Upload, X, Copy, Eye, DownloadCloud, ShieldCheck, Clock, Lock, Users } from 'lucide-react'
+import {
+  Filter,
+  RefreshCw,
+  Search,
+  Share2,
+  Trash2,
+  Upload,
+  X,
+  Copy,
+  Eye,
+  DownloadCloud,
+  ShieldCheck,
+  Clock,
+  Lock,
+  Users,
+} from 'lucide-react'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
 import { Badge } from '../components/ui/badge'
@@ -15,6 +30,7 @@ import {
 import { Textarea } from '../components/ui/textarea'
 import { Label } from '../components/ui/label'
 import { deleteFile, fetchFiles, shareFile, uploadFile } from '../api/files'
+import { fetchUsers } from '../api/users'
 import { useAuthStore } from '../store/auth'
 import { toast } from 'sonner'
 import PreviewDialog from '../components/preview/PreviewDialog'
@@ -182,12 +198,15 @@ const ConfirmDialog = ({ open, title, description, confirmText = '确认', onCon
   )
 }
 
-const ShareDialog = ({ open, file, onClose, onCreate }) => {
+const ShareDialog = ({ open, file, onClose, onCreate, isAdmin }) => {
   const [requireLogin, setRequireLogin] = useState(true)
   const [allowUsername, setAllowUsername] = useState('')
   const [maxViews, setMaxViews] = useState('20')
   const [expiresInDays, setExpiresInDays] = useState('7')
   const [submitting, setSubmitting] = useState(false)
+  const [userSearch, setUserSearch] = useState('')
+  const [users, setUsers] = useState([])
+  const [loadingUsers, setLoadingUsers] = useState(false)
 
   useEffect(() => {
     if (open) {
@@ -196,8 +215,24 @@ const ShareDialog = ({ open, file, onClose, onCreate }) => {
       setAllowUsername('')
       setMaxViews('20')
       setExpiresInDays('7')
+      setUserSearch('')
+      if (isAdmin) {
+        loadUsers()
+      }
     }
   }, [open, file?.id])
+
+  const loadUsers = async () => {
+    setLoadingUsers(true)
+    try {
+      const { data } = await fetchUsers()
+      setUsers(data || [])
+    } catch (err) {
+      toast.error(err.response?.data?.error || err.message, { description: '无法获取用户列表' })
+    } finally {
+      setLoadingUsers(false)
+    }
+  }
 
   if (!open || !file) return null
 
@@ -207,7 +242,7 @@ const ShareDialog = ({ open, file, onClose, onCreate }) => {
     try {
       const payload = {
         require_login: requireLogin,
-        allow_username: allowUsername.trim() || undefined,
+        allow_username: isAdmin ? allowUsername.trim() || undefined : undefined,
         max_views: maxViews ? Number(maxViews) : undefined,
         expires_in_days: Number(expiresInDays),
       }
@@ -221,7 +256,7 @@ const ShareDialog = ({ open, file, onClose, onCreate }) => {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
-      <div className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white shadow-card">
+      <div className="w-full max-w-3xl rounded-2xl border border-slate-200 bg-white shadow-card md:w-[80vw] lg:w-[70vw]">
         <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
           <div className="space-y-1">
             <p className="text-base font-semibold text-slate-900 flex items-center gap-2">
@@ -304,20 +339,58 @@ const ShareDialog = ({ open, file, onClose, onCreate }) => {
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label className="text-xs uppercase tracking-wide text-slate-500">限定接收人 (可选)</Label>
+            {isAdmin && (
               <div className="space-y-2">
-                <Input
-                  placeholder="输入允许访问的用户名，如不限制可留空"
-                  value={allowUsername}
-                  onChange={(e) => setAllowUsername(e.target.value)}
-                  className="w-full"
-                />
-                <p className="text-xs text-slate-500 flex items-center gap-1">
-                  <Users className="h-4 w-4" /> 指定用户后必须登录，且仅该用户可打开。
-                </p>
+                <Label className="text-xs uppercase tracking-wide text-slate-500">限定接收人 (管理员可选)</Label>
+                <div className="space-y-2 rounded-xl border border-slate-200 p-3">
+                  <Input
+                    placeholder="筛选用户名"
+                    value={userSearch}
+                    onChange={(e) => setUserSearch(e.target.value)}
+                    className="w-full"
+                  />
+                  <div className="max-h-48 overflow-y-auto rounded-lg border border-slate-100 bg-slate-50">
+                    <label className="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-white">
+                      <input
+                        type="radio"
+                        name="allow-user"
+                        value=""
+                        checked={!allowUsername}
+                        onChange={() => setAllowUsername('')}
+                        className="h-4 w-4 text-primary"
+                      />
+                      不限定接收人
+                    </label>
+                    {loadingUsers ? (
+                      <p className="px-3 py-2 text-xs text-slate-500">加载用户...</p>
+                    ) : (
+                      users
+                        .filter((u) => u.username.toLowerCase().includes(userSearch.toLowerCase()))
+                        .map((u) => (
+                          <label
+                            key={u.id}
+                            className="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-white"
+                          >
+                            <input
+                              type="radio"
+                              name="allow-user"
+                              value={u.username}
+                              checked={allowUsername === u.username}
+                              onChange={() => setAllowUsername(u.username)}
+                              className="h-4 w-4 text-primary"
+                            />
+                            <span className="font-medium">{u.username}</span>
+                            <Badge variant="secondary" className="text-[11px]">{u.role}</Badge>
+                          </label>
+                        ))
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-500 flex items-center gap-1">
+                    <Users className="h-4 w-4" /> 仅管理员可指定接收人，选择后将强制登录校验。
+                  </p>
+                </div>
               </div>
-            </div>
+            )}
 
             <div className="flex flex-wrap gap-2 text-xs text-slate-500">
               <span className="flex items-center gap-1"><Clock className="h-4 w-4" /> 访问时间范围：可选 1/7/30 天</span>
@@ -353,6 +426,7 @@ const Content = () => {
 	const [ownerFilter, setOwnerFilter] = useState('all')
 	const [typeFilter, setTypeFilter] = useState('all')
 	const { user } = useAuthStore()
+	const isAdmin = user?.role === 'admin'
 
 	const copyToClipboard = async (value) => {
 		if (!value || typeof navigator === 'undefined') return false
@@ -561,7 +635,8 @@ const Content = () => {
 	          <div className="grid grid-cols-[repeat(auto-fit,minmax(320px,1fr))] gap-6">
             {filtered.map((f) => {
               const type = typeOfFile(f.mime_type, f.filename)
-              const canDelete = user?.role === 'admin' || user?.username === f.owner
+              const canDelete = isAdmin || user?.username === f.owner
+	          const canShare = isAdmin || user?.username === f.owner
 	            const deleteText = '删除'
               return (
                 <Card key={f.id} className="flex h-full flex-col">
@@ -621,10 +696,12 @@ const Content = () => {
                         </Button>
                       </div>
                       <div className="flex gap-2 flex-nowrap flex-shrink-0">
-						<Button type="button" size="sm" onClick={() => startShare(f)} className="gap-2 whitespace-nowrap">
-							<Share2 className="h-4 w-4" />
-							分享
-						</Button>
+	                        {canShare && (
+	                          <Button type="button" size="sm" onClick={() => startShare(f)} className="gap-2 whitespace-nowrap">
+		                        <Share2 className="h-4 w-4" />
+		                        分享
+	                          </Button>
+	                        )}
                         {canDelete && (
                           <Button
                             variant="destructive"
@@ -656,6 +733,7 @@ const Content = () => {
 		file={shareTarget}
 		onClose={() => setShareDialogOpen(false)}
 		onCreate={handleCreateShare}
+		isAdmin={isAdmin}
 	/>
 	<ConfirmDialog
 		open={confirmConfig.open}

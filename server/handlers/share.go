@@ -67,6 +67,10 @@ func CreateShare(db *gorm.DB, cfg *config.Config) gin.HandlerFunc {
 		var allowUserID *uint
 		allowUser := strings.TrimSpace(req.AllowUsername)
 		if allowUser != "" {
+			if role != models.RoleAdmin {
+				c.JSON(http.StatusForbidden, gin.H{"error": "only admin can limit receiver"})
+				return
+			}
 			var u models.User
 			if err := db.Where("username = ?", allowUser).First(&u).Error; err != nil {
 				status := http.StatusBadRequest
