@@ -133,7 +133,7 @@ const SharePreview = () => {
     }
     if (fileType === 'text' && textContent) {
       return (
-        <pre className="h-[60vh] overflow-auto rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-800">
+        <pre className="h-[60vh] overflow-auto whitespace-pre-wrap break-words break-all rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-800">
           {textContent}
         </pre>
       )
