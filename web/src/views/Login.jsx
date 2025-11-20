@@ -39,14 +39,30 @@ const Login = () => {
           <CardDescription>请使用管理员或普通用户账号登录</CardDescription>
         </CardHeader>
         <CardContent>
-          <form className="space-y-4" onSubmit={submit}>
+          {/* 开启表单自动填充，便于浏览器密码管理器识别并提示保存 */}
+          <form className="space-y-4" onSubmit={submit} autoComplete="on">
             <div className="space-y-2">
               <Label>用户名</Label>
-              <Input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="请输入用户名" required />
+              <Input
+                name="username"
+                autoComplete="username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="请输入用户名"
+                required
+              />
             </div>
             <div className="space-y-2">
               <Label>密码</Label>
-              <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="请输入密码" required />
+              <Input
+                name="password"
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="请输入密码"
+                required
+              />
             </div>
             {/* 自动登录选项：移动端单列，桌面分栏，保持易点击面积 */}
             <div className="space-y-2">
