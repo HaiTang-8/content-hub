@@ -2,6 +2,7 @@
 server/data/
 server/uploads/
 server/.env
+server/.gocache
 
 # Node
 web/node_modules/

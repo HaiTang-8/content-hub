@@ -284,7 +284,11 @@ const Content = () => {
 		}
 	}
 
-	const owners = useMemo(() => Array.from(new Set(files.map((f) => f.owner))), [files])
+  // 过滤空值，防止 SelectItem 出现空字符串导致 Radix 抛错
+  const owners = useMemo(
+    () => Array.from(new Set(files.map((f) => f.owner).filter(Boolean))),
+    [files]
+  )
 
 	const handleDelete = async (file) => {
 		const isAdmin = user?.role === 'admin'

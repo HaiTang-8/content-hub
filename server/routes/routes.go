@@ -16,7 +16,7 @@ func SetupRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 
 	r.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{cfg.AllowOrigin, "http://localhost:5173"},
-		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Authorization", "Content-Type"},
 		AllowCredentials: true,
 	}))
@@ -41,6 +41,10 @@ func SetupRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 		admin := authorized.Group("/admin")
 		admin.Use(middleware.RequireAdmin())
 		admin.POST("/users", handlers.CreateUser(db))
+		admin.GET("/users", handlers.ListUsers(db))
+		admin.DELETE("/users/:id", handlers.DeleteUser(db))
+		admin.PATCH("/users/:id/role", handlers.UpdateUserRole(db))
+		admin.POST("/users/:id/reset-password", handlers.ResetPassword(db))
 	}
 
 	// public share endpoint
