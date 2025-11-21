@@ -185,6 +185,21 @@ func StreamShare(db *gorm.DB, cfg *config.Config) gin.HandlerFunc {
 			return
 		}
 
+		// 确认底层文件仍然存在，避免已删除文件导致 open 抛出系统错误
+		if info, err := os.Stat(share.File.Path); err != nil {
+			status := http.StatusInternalServerError
+			msg := err.Error()
+			if errors.Is(err, os.ErrNotExist) {
+				status = http.StatusNotFound
+				msg = "shared file not found or already deleted"
+			}
+			c.JSON(status, gin.H{"error": msg})
+			return
+		} else if info.IsDir() {
+			c.JSON(http.StatusNotFound, gin.H{"error": "shared file path is a directory"})
+			return
+		}
+
 		// 控制访问次数：带上上限的情况下需要在返回前占用 1 次额度，避免并发下超过限制
 		if err := consumeView(db, share); err != nil {
 			status := http.StatusInternalServerError
@@ -197,7 +212,12 @@ func StreamShare(db *gorm.DB, cfg *config.Config) gin.HandlerFunc {
 
 		file, err := os.Open(share.File.Path)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			// 再次防御：即使通过 Stat 仍可能在窗口期被删除
+			status := http.StatusInternalServerError
+			if errors.Is(err, os.ErrNotExist) {
+				status = http.StatusNotFound
+			}
+			c.JSON(status, gin.H{"error": err.Error()})
 			return
 		}
 		defer file.Close()

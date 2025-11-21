@@ -1,0 +1,88 @@
+package handlers
+
+import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"content-hub/server/config"
+	"content-hub/server/models"
+	"github.com/gin-gonic/gin"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
+)
+
+// 确保已删除的底层文件不会导致流接口抛系统错误，而是向客户端返回友好的 404。
+func TestStreamShareMissingFile(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	dbPath := filepath.Join(t.TempDir(), "test.db")
+	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	if err := db.AutoMigrate(&models.User{}, &models.File{}, &models.Share{}); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+
+	owner := models.User{Username: "owner", Role: models.RoleUser, PasswordHash: "x"}
+	if err := db.Create(&owner).Error; err != nil {
+		t.Fatalf("create owner: %v", err)
+	}
+
+	missingPath := filepath.Join(t.TempDir(), "missing.txt") // 路径存在但文件未创建
+	file := models.File{
+		OwnerID:  owner.ID,
+		Filename: "missing.txt",
+		Path:     missingPath,
+		Size:     0,
+		MimeType: "text/plain",
+	}
+	if err := db.Create(&file).Error; err != nil {
+		t.Fatalf("create file: %v", err)
+	}
+
+	share := models.Share{
+		Token:        "missing-share-token",
+		FileID:       file.ID,
+		CreatorID:    owner.ID,
+		RequireLogin: false,
+	}
+	if err := db.Create(&share).Error; err != nil {
+		t.Fatalf("create share: %v", err)
+	}
+
+	cfg := &config.Config{JWTSecret: "test-secret"}
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	req := httptest.NewRequest(http.MethodGet, "/api/shares/missing-share-token/stream", nil)
+	c.Request = req
+	c.Params = gin.Params{{Key: "token", Value: share.Token}}
+
+	StreamShare(db, cfg)(c)
+
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d, body=%s", w.Code, w.Body.String())
+	}
+
+	var resp map[string]string
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if !strings.Contains(resp["error"], "shared file") {
+		t.Fatalf("unexpected error message: %q", resp["error"])
+	}
+
+	// 访问失败时不应计入 view_count
+	var refreshed models.Share
+	if err := db.First(&refreshed, share.ID).Error; err != nil {
+		t.Fatalf("reload share: %v", err)
+	}
+	if refreshed.ViewCount != 0 {
+		t.Fatalf("view_count incremented unexpectedly: %d", refreshed.ViewCount)
+	}
+}

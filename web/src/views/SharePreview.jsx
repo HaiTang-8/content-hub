@@ -79,6 +79,9 @@ const SharePreview = () => {
         setError('您不是被允许的访问者，无法查看该分享')
       } else if (status === 410) {
         setError('分享已失效或次数已用尽')
+      } else if (status === 404) {
+        // 文件已被删除或路径失效时给出明确提示，避免裸露底层错误
+        setError('分享文件已被删除或移动，预览不可用')
       } else {
         setError(err.response?.data?.error || err.message)
       }
