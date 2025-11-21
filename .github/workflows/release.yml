@@ -12,7 +12,6 @@ permissions:
 
 env:
   VITE_API_URL: /api
-  OUTPUT_DIR: dist
 
 jobs:
   linux:
@@ -67,6 +66,7 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: 1
           CC: ${{ matrix.cc }}
+          OUTPUT_DIR: ${{ github.workspace }}/dist
           OUTPUT_NAME: content-hub-${{ matrix.goos }}-${{ matrix.goarch }}
         run: |
           set -euo pipefail
@@ -75,14 +75,14 @@ jobs:
       - name: Verify artifact
         run: |
           set -euo pipefail
-          ls -lah dist
-          test -f dist/content-hub-${{ matrix.goos }}-${{ matrix.goarch }}
+          ls -lah ${{ github.workspace }}/dist
+          test -f ${{ github.workspace }}/dist/content-hub-${{ matrix.goos }}-${{ matrix.goarch }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: content-hub-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: dist/content-hub-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: ${{ github.workspace }}/dist/content-hub-${{ matrix.goos }}-${{ matrix.goarch }}
 
   macos:
     runs-on: macos-14
@@ -119,6 +119,7 @@ jobs:
           GOOS: darwin
           GOARCH: arm64
           CGO_ENABLED: 1
+          OUTPUT_DIR: ${{ github.workspace }}/dist
           OUTPUT_NAME: content-hub-darwin-arm64
         run: |
           set -euo pipefail
@@ -127,14 +128,14 @@ jobs:
       - name: Verify artifact
         run: |
           set -euo pipefail
-          ls -lah dist
-          test -f dist/content-hub-darwin-arm64
+          ls -lah ${{ github.workspace }}/dist
+          test -f ${{ github.workspace }}/dist/content-hub-darwin-arm64
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: content-hub-darwin-arm64
-          path: dist/content-hub-darwin-arm64
+          path: ${{ github.workspace }}/dist/content-hub-darwin-arm64
 
   windows:
     runs-on: windows-latest
@@ -175,6 +176,7 @@ jobs:
           GOARCH: amd64
           CGO_ENABLED: 1
           CC: x86_64-w64-mingw32-gcc
+          OUTPUT_DIR: ${{ github.workspace }}/dist
           OUTPUT_NAME: content-hub-windows-amd64.exe
         run: |
           set -euo pipefail
@@ -184,14 +186,14 @@ jobs:
       - name: Verify artifact
         run: |
           set -euo pipefail
-          ls -lah dist
-          test -f dist/content-hub-windows-amd64.exe
+          ls -lah ${{ github.workspace }}/dist
+          test -f ${{ github.workspace }}/dist/content-hub-windows-amd64.exe
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: content-hub-windows-amd64
-          path: dist/content-hub-windows-amd64.exe
+          path: ${{ github.workspace }}/dist/content-hub-windows-amd64.exe
 
   release:
     needs: [linux, macos, windows]
@@ -213,4 +215,3 @@ jobs:
             dist-artifacts/content-hub-windows-amd64/content-hub-windows-amd64.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
