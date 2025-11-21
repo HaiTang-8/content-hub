@@ -198,6 +198,7 @@ const ConfirmDialog = ({ open, title, description, confirmText = '确认', onCon
   )
 }
 
+
 const ShareDialog = ({ open, file, onClose, onCreate, isAdmin }) => {
   const [requireLogin, setRequireLogin] = useState(true)
   const [allowUsername, setAllowUsername] = useState('')
@@ -632,16 +633,19 @@ const Content = () => {
         {loading ? (
           <p className="text-sm text-slate-500">加载中...</p>
         ) : filtered.length ? (
-	          <div className="grid grid-cols-[repeat(auto-fit,minmax(320px,1fr))] gap-6">
-            {filtered.map((f) => {
-              const type = typeOfFile(f.mime_type, f.filename)
-              const canDelete = isAdmin || user?.username === f.owner
-	          const canShare = isAdmin || user?.username === f.owner
-	            const deleteText = '删除'
-              return (
-                <Card key={f.id} className="flex h-full flex-col">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-start justify-between gap-3">
+          <>
+            {/* 使用 grid 固定列数，保证桌面端一行四个卡片，避免列数因高度变化而折行 */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              {filtered.map((f) => {
+                const type = typeOfFile(f.mime_type, f.filename)
+                const canDelete = isAdmin || user?.username === f.owner
+                const canShare = isAdmin || user?.username === f.owner
+                const deleteText = '删除'
+                return (
+                  <div key={f.id} className="h-full">
+                    <Card className="flex h-full flex-col w-full shadow-sm">
+                      <CardHeader className="pb-3">
+                        <div className="flex items-start justify-between gap-3">
                       <div className="space-y-1 min-w-0">
                         <CardTitle
                           className="text-lg leading-tight truncate"
@@ -716,11 +720,13 @@ const Content = () => {
                         )}
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
+                    </CardContent>
+                  </Card>
+                  </div>
               )
             })}
-          </div>
+            </div>
+          </>
         ) : (
           <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-10 text-center text-sm text-slate-500">
             还没有内容，点击右上角“上传”添加吧。
