@@ -10,6 +10,10 @@ permissions:
   contents: write
   actions: read
 
+env:
+  VITE_API_URL: /api
+  OUTPUT_DIR: dist
+
 jobs:
   linux:
     runs-on: ubuntu-latest
@@ -20,20 +24,20 @@ jobs:
           - goos: linux
             goarch: amd64
             cc: gcc
-            ext: ""
           - goos: linux
             goarch: arm64
             cc: aarch64-linux-gnu-gcc
-            ext: ""
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-go@v5
         with:
           go-version: '1.24'
+          cache-dependency-path: server/go.sum
 
       - name: Install cross toolchains
         run: |
+          set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y gcc-aarch64-linux-gnu
 
@@ -45,14 +49,14 @@ jobs:
 
       - name: Build frontend
         working-directory: web
-        env:
-          VITE_API_URL: /api
         run: |
+          set -euo pipefail
           npm ci
           npm run build
 
       - name: Prepare embedded assets
         run: |
+          set -euo pipefail
           rm -rf server/frontend/ui
           mkdir -p server/frontend/ui
           cp -R web/dist/. server/frontend/ui/
@@ -63,9 +67,16 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: 1
           CC: ${{ matrix.cc }}
-          OUTPUT_DIR: dist
           OUTPUT_NAME: content-hub-${{ matrix.goos }}-${{ matrix.goarch }}
-        run: ./build_release.sh
+        run: |
+          set -euo pipefail
+          ./build_release.sh
+
+      - name: Verify artifact
+        run: |
+          set -euo pipefail
+          ls -lah dist
+          test -f dist/content-hub-${{ matrix.goos }}-${{ matrix.goarch }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -81,6 +92,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: '1.24'
+          cache-dependency-path: server/go.sum
 
       - uses: actions/setup-node@v4
         with:
@@ -90,14 +102,14 @@ jobs:
 
       - name: Build frontend
         working-directory: web
-        env:
-          VITE_API_URL: /api
         run: |
+          set -euo pipefail
           npm ci
           npm run build
 
       - name: Prepare embedded assets
         run: |
+          set -euo pipefail
           rm -rf server/frontend/ui
           mkdir -p server/frontend/ui
           cp -R web/dist/. server/frontend/ui/
@@ -107,9 +119,16 @@ jobs:
           GOOS: darwin
           GOARCH: arm64
           CGO_ENABLED: 1
-          OUTPUT_DIR: dist
           OUTPUT_NAME: content-hub-darwin-arm64
-        run: ./build_release.sh
+        run: |
+          set -euo pipefail
+          ./build_release.sh
+
+      - name: Verify artifact
+        run: |
+          set -euo pipefail
+          ls -lah dist
+          test -f dist/content-hub-darwin-arm64
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -128,6 +147,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: '1.24'
+          cache-dependency-path: server/go.sum
 
       - uses: actions/setup-node@v4
         with:
@@ -137,14 +157,14 @@ jobs:
 
       - name: Build frontend
         working-directory: web
-        env:
-          VITE_API_URL: /api
         run: |
+          set -euo pipefail
           npm ci
           npm run build
 
       - name: Prepare embedded assets
         run: |
+          set -euo pipefail
           rm -rf server/frontend/ui
           mkdir -p server/frontend/ui
           cp -R web/dist/. server/frontend/ui/
@@ -155,11 +175,17 @@ jobs:
           GOARCH: amd64
           CGO_ENABLED: 1
           CC: x86_64-w64-mingw32-gcc
-          OUTPUT_DIR: dist
           OUTPUT_NAME: content-hub-windows-amd64.exe
         run: |
+          set -euo pipefail
           choco install -y mingw
           ./build_release.sh
+
+      - name: Verify artifact
+        run: |
+          set -euo pipefail
+          ls -lah dist
+          test -f dist/content-hub-windows-amd64.exe
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -187,3 +213,4 @@ jobs:
             dist-artifacts/content-hub-windows-amd64/content-hub-windows-amd64.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
