@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
-import { AlertTriangle, Lock, RefreshCw, ShieldCheck, Trash2, Users } from 'lucide-react'
+import { AlertTriangle, Copy, Lock, RefreshCw, ShieldCheck, Trash2, Users } from 'lucide-react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table'
 import { Button } from '../components/ui/button'
 import { Badge } from '../components/ui/badge'
@@ -14,7 +14,37 @@ const ShareManage = () => {
   const [shares, setShares] = useState([])
   const [loading, setLoading] = useState(true)
   const [revoking, setRevoking] = useState('')
+  const [copying, setCopying] = useState('')
   const [error, setError] = useState('')
+  const shareBase = useMemo(() => (typeof window !== 'undefined' ? window.location.origin : ''), [])
+
+  // 通用复制工具，兼容桌面端与移动端的异步剪贴板及回退方案
+  const copyToClipboard = async (value) => {
+    if (!value || typeof navigator === 'undefined') return false
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(value)
+        return true
+      }
+    } catch (err) {
+      console.warn('Clipboard API copy failed', err)
+    }
+    try {
+      const textarea = document.createElement('textarea')
+      textarea.value = value
+      textarea.style.position = 'fixed'
+      textarea.style.opacity = '0'
+      document.body.appendChild(textarea)
+      textarea.focus()
+      textarea.select()
+      const ok = document.execCommand('copy')
+      document.body.removeChild(textarea)
+      return ok
+    } catch (err) {
+      console.warn('Fallback clipboard copy failed', err)
+      return false
+    }
+  }
 
   const load = async () => {
     setLoading(true)
@@ -43,6 +73,20 @@ const ShareManage = () => {
       toast.error(err.response?.data?.error || err.message, { description: '撤销失败，请稍后再试' })
     } finally {
       setRevoking('')
+    }
+  }
+
+  // 构造预览地址并复制，提供快捷“复制链接”操作，方便后台一键分发
+  const copyShareLink = async (token) => {
+    if (!token || !shareBase) return
+    setCopying(token)
+    const link = `${shareBase}/preview/${token}`
+    const ok = await copyToClipboard(link)
+    setCopying('')
+    if (ok) {
+      toast.success('已复制分享链接', { description: link })
+    } else {
+      toast.error('复制失败，请手动选择链接', { description: link })
     }
   }
 
@@ -135,16 +179,28 @@ const ShareManage = () => {
                     {dayjs(s.created_at).format('MM/DD HH:mm')}
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      className="gap-2"
-                      onClick={() => revoke(s.token)}
-                      disabled={revoking === s.token}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      {revoking === s.token ? '撤销中' : '撤销'}
-                    </Button>
+                    <div className="flex flex-wrap justify-end gap-2">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="gap-2"
+                        onClick={() => copyShareLink(s.token)}
+                        disabled={copying === s.token}
+                      >
+                        <Copy className="h-4 w-4" />
+                        {copying === s.token ? '复制中' : '复制链接'}
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        className="gap-2"
+                        onClick={() => revoke(s.token)}
+                        disabled={revoking === s.token}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        {revoking === s.token ? '撤销中' : '撤销'}
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))
