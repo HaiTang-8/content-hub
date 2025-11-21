@@ -12,3 +12,6 @@ export const listShares = () => api.get('/admin/shares')
 
 // 管理端：撤销某个分享
 export const revokeShare = (token) => api.delete(`/admin/shares/${token}`)
+
+// 管理端：批量清理分享（过期 / 文件缺失 / 次数耗尽）
+export const cleanShares = (payload) => api.post('/admin/shares/cleanup', payload)

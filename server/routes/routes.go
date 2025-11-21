@@ -49,6 +49,7 @@ func SetupRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 		admin.PATCH("/users/:id/role", handlers.UpdateUserRole(db))
 		admin.POST("/users/:id/reset-password", handlers.ResetPassword(db))
 		admin.GET("/shares", handlers.ListShares(db))
+		admin.POST("/shares/cleanup", handlers.CleanShares(db))
 		admin.DELETE("/shares/:token", handlers.RevokeShare(db))
 	}
 

@@ -5,7 +5,7 @@ import { AlertTriangle, Copy, Lock, RefreshCw, ShieldCheck, Trash2, Users } from
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table'
 import { Button } from '../components/ui/button'
 import { Badge } from '../components/ui/badge'
-import { listShares, revokeShare } from '../api/shares'
+import { cleanShares, listShares, revokeShare } from '../api/shares'
 import { toast } from 'sonner'
 
 dayjs.extend(relativeTime)
@@ -15,6 +15,12 @@ const ShareManage = () => {
   const [loading, setLoading] = useState(true)
   const [revoking, setRevoking] = useState('')
   const [copying, setCopying] = useState('')
+  const [cleaning, setCleaning] = useState(false)
+  const [cleanupOptions, setCleanupOptions] = useState({
+    expired: true,
+    missingFile: true,
+    exhausted: false,
+  })
   const [error, setError] = useState('')
   const shareBase = useMemo(() => (typeof window !== 'undefined' ? window.location.origin : ''), [])
 
@@ -76,6 +82,34 @@ const ShareManage = () => {
     }
   }
 
+  // 切换清理选项，前缀 mobile-first，保持响应式布局
+  const toggleCleanupOption = (key) => {
+    setCleanupOptions((prev) => ({ ...prev, [key]: !prev[key] }))
+  }
+
+  // 一键清理：可选择过期、文件缺失、次数耗尽三类失效分享
+  const handleClean = async () => {
+    if (!cleanupOptions.expired && !cleanupOptions.missingFile && !cleanupOptions.exhausted) {
+      toast.error('请至少选择一种清理条件')
+      return
+    }
+    setCleaning(true)
+    try {
+      const { data } = await cleanShares({
+        remove_expired: cleanupOptions.expired,
+        remove_missing_file: cleanupOptions.missingFile,
+        remove_exhausted: cleanupOptions.exhausted,
+      })
+      const desc = `删除 ${data.deleted || 0} 条，过期 ${data.expired_count || 0}，缺失文件 ${data.missing_file_count || 0}，次数耗尽 ${data.exhausted_count || 0}`
+      toast.success('清理完成', { description: desc })
+      await load()
+    } catch (err) {
+      toast.error(err.response?.data?.error || err.message, { description: '清理失败，请稍后重试' })
+    } finally {
+      setCleaning(false)
+    }
+  }
+
   // 构造预览地址并复制，提供快捷“复制链接”操作，方便后台一键分发
   const copyShareLink = async (token) => {
     if (!token || !shareBase) return
@@ -103,6 +137,50 @@ const ShareManage = () => {
         <Button variant="outline" size="sm" onClick={load} disabled={loading} className="gap-2">
           <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> 刷新
         </Button>
+      </div>
+
+      <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <p className="text-sm font-semibold text-slate-900">一键清理失效分享</p>
+        <div className="flex flex-wrap items-center gap-3 text-sm text-slate-700">
+          <label className="flex items-center gap-2 whitespace-nowrap">
+            <input
+              type="checkbox"
+              checked={cleanupOptions.expired}
+              onChange={() => toggleCleanupOption('expired')}
+              className="h-4 w-4 accent-slate-700"
+            />
+            清理过期链接
+          </label>
+          <label className="flex items-center gap-2 whitespace-nowrap">
+            <input
+              type="checkbox"
+              checked={cleanupOptions.missingFile}
+              onChange={() => toggleCleanupOption('missingFile')}
+              className="h-4 w-4 accent-slate-700"
+            />
+            清理文件缺失
+          </label>
+          <label className="flex items-center gap-2 whitespace-nowrap">
+            <input
+              type="checkbox"
+              checked={cleanupOptions.exhausted}
+              onChange={() => toggleCleanupOption('exhausted')}
+              className="h-4 w-4 accent-slate-700"
+            />
+            清理次数耗尽
+          </label>
+          <div className="flex-1" />
+          <Button
+            size="sm"
+            className="gap-2"
+            onClick={handleClean}
+            disabled={cleaning}
+          >
+            <Trash2 className="h-4 w-4" />
+            {cleaning ? '清理中...' : '一键清理'}
+          </Button>
+        </div>
+        <p className="text-xs text-slate-500">选项支持叠加；执行后仅删除符合条件的分享记录，文件本身不受影响，移动端同样保持单列布局。</p>
       </div>
 
       {error && (

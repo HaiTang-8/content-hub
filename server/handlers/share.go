@@ -229,6 +229,83 @@ func StreamShare(db *gorm.DB, cfg *config.Config) gin.HandlerFunc {
 	}
 }
 
+// CleanShares 支持管理员一键清理失效分享，避免访问落到过期或缺失文件的链接。
+func CleanShares(db *gorm.DB) gin.HandlerFunc {
+	type cleanRequest struct {
+		RemoveExpired     bool `json:"remove_expired"`
+		RemoveMissingFile bool `json:"remove_missing_file"`
+		RemoveExhausted   bool `json:"remove_exhausted"`
+	}
+	type cleanResult struct {
+		Deleted            int      `json:"deleted"`
+		ExpiredCount       int      `json:"expired_count"`
+		MissingFileCount   int      `json:"missing_file_count"`
+		ExhaustedCount     int      `json:"exhausted_count"`
+		DeletedShareTokens []string `json:"deleted_share_tokens"`
+	}
+
+	return func(c *gin.Context) {
+		var req cleanRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		if !req.RemoveExpired && !req.RemoveMissingFile && !req.RemoveExhausted {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "至少选择一个清理条件"})
+			return
+		}
+
+		var shares []models.Share
+		if err := db.Preload("File").Find(&shares).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		now := time.Now()
+		result := cleanResult{}
+		toDelete := make([]uint, 0, len(shares))
+
+		for _, s := range shares {
+			marked := false
+
+			if req.RemoveExpired && s.Expired(now) {
+				result.ExpiredCount++
+				marked = true
+			}
+
+			if req.RemoveExhausted && s.MaxViews != nil && s.ViewCount >= *s.MaxViews {
+				result.ExhaustedCount++
+				marked = true
+			}
+
+			if req.RemoveMissingFile {
+				if s.File.Path == "" {
+					result.MissingFileCount++
+					marked = true
+				} else if info, err := os.Stat(s.File.Path); err != nil || info.IsDir() {
+					result.MissingFileCount++
+					marked = true
+				}
+			}
+
+			if marked {
+				toDelete = append(toDelete, s.ID)
+				result.DeletedShareTokens = append(result.DeletedShareTokens, s.Token)
+			}
+		}
+
+		if len(toDelete) > 0 {
+			if err := db.Where("id IN ?", toDelete).Delete(&models.Share{}).Error; err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			result.Deleted = len(toDelete)
+		}
+
+		c.JSON(http.StatusOK, result)
+	}
+}
+
 // LegacyShareRedirect 保持旧地址不再触发下载，提示使用新的预览链接。
 func LegacyShareRedirect() gin.HandlerFunc {
 	return func(c *gin.Context) {
