@@ -1,0 +1,189 @@
+name: release-binaries
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            cc: gcc
+            ext: ""
+          - goos: linux
+            goarch: arm64
+            cc: aarch64-linux-gnu-gcc
+            ext: ""
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Install cross toolchains
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: web/package-lock.json
+
+      - name: Build frontend
+        working-directory: web
+        env:
+          VITE_API_URL: /api
+        run: |
+          npm ci
+          npm run build
+
+      - name: Prepare embedded assets
+        run: |
+          rm -rf server/frontend/ui
+          mkdir -p server/frontend/ui
+          cp -R web/dist/. server/frontend/ui/
+
+      - name: Build Go binary
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 1
+          CC: ${{ matrix.cc }}
+          OUTPUT_DIR: dist
+          OUTPUT_NAME: content-hub-${{ matrix.goos }}-${{ matrix.goarch }}
+        run: ./build_release.sh
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: content-hub-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/content-hub-${{ matrix.goos }}-${{ matrix.goarch }}
+
+  macos:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: web/package-lock.json
+
+      - name: Build frontend
+        working-directory: web
+        env:
+          VITE_API_URL: /api
+        run: |
+          npm ci
+          npm run build
+
+      - name: Prepare embedded assets
+        run: |
+          rm -rf server/frontend/ui
+          mkdir -p server/frontend/ui
+          cp -R web/dist/. server/frontend/ui/
+
+      - name: Build Go binary (darwin arm64)
+        env:
+          GOOS: darwin
+          GOARCH: arm64
+          CGO_ENABLED: 1
+          OUTPUT_DIR: dist
+          OUTPUT_NAME: content-hub-darwin-arm64
+        run: ./build_release.sh
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: content-hub-darwin-arm64
+          path: dist/content-hub-darwin-arm64
+
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: web/package-lock.json
+
+      - name: Build frontend
+        working-directory: web
+        env:
+          VITE_API_URL: /api
+        run: |
+          npm ci
+          npm run build
+
+      - name: Prepare embedded assets
+        run: |
+          rm -rf server/frontend/ui
+          mkdir -p server/frontend/ui
+          cp -R web/dist/. server/frontend/ui/
+
+      - name: Build Go binary (windows amd64)
+        env:
+          GOOS: windows
+          GOARCH: amd64
+          CGO_ENABLED: 1
+          CC: x86_64-w64-mingw32-gcc
+          OUTPUT_DIR: dist
+          OUTPUT_NAME: content-hub-windows-amd64.exe
+        run: |
+          choco install -y mingw
+          ./build_release.sh
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: content-hub-windows-amd64
+          path: dist/content-hub-windows-amd64.exe
+
+  release:
+    needs: [linux, macos, windows]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist-artifacts
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist-artifacts/content-hub-linux-amd64/content-hub-linux-amd64
+            dist-artifacts/content-hub-linux-arm64/content-hub-linux-arm64
+            dist-artifacts/content-hub-darwin-arm64/content-hub-darwin-arm64
+            dist-artifacts/content-hub-windows-amd64/content-hub-windows-amd64.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

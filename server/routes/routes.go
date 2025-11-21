@@ -1,9 +1,11 @@
 package routes
 
 import (
+	"fmt"
 	"net/http"
 
 	"content-hub/server/config"
+	"content-hub/server/frontend"
 	"content-hub/server/handlers"
 	"content-hub/server/middleware"
 	"github.com/gin-contrib/cors"
@@ -11,7 +13,9 @@ import (
 	"gorm.io/gorm"
 )
 
-func SetupRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
+// SetupRouter wires API routes and the embedded frontend bundle so the built
+// binary can serve both surfaces without extra assets.
+func SetupRouter(db *gorm.DB, cfg *config.Config) (*gin.Engine, error) {
 	r := gin.Default()
 
 	r.Use(cors.New(cors.Config{
@@ -58,5 +62,11 @@ func SetupRouter(db *gorm.DB, cfg *config.Config) *gin.Engine {
 
 	r.GET("/health", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"status": "ok"}) })
 
-	return r
+	assets, err := frontend.Assets()
+	if err != nil {
+		return nil, fmt.Errorf("load embedded frontend: %w", err)
+	}
+	frontend.Register(r, assets)
+
+	return r, nil
 }

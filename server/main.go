@@ -16,7 +16,10 @@ func main() {
 		log.Fatalf("failed to connect database: %v", err)
 	}
 
-	router := routes.SetupRouter(db, cfg)
+	router, err := routes.SetupRouter(db, cfg)
+	if err != nil {
+		log.Fatalf("failed to init router: %v", err)
+	}
 
 	if err := router.Run(cfg.Addr()); err != nil {
 		log.Fatalf("server exited: %v", err)

@@ -42,7 +42,26 @@ npm run dev -- --host
 ```
 默认开发端口 `5173`，接口地址可在 `.env` 配置 `VITE_API_URL`（默认 `http://localhost:8080/api`）。
 
-### 3) 登录 & 权限
+### 3) 一键打包单可执行文件
+```bash
+chmod +x build_release.sh
+./build_release.sh             # 默认生成 dist/content-hub，前端 API 基座注入 /api（同源）
+# 可选：OUTPUT_DIR=./bin OUTPUT_NAME=content-hub-linux GOOS=linux GOARCH=amd64 ./build_release.sh
+```
+脚本会先执行 `npm install && npm run build`，将 `web/dist` 复制到 `server/frontend/ui` 并编译出带前端的 Go 二进制。运行产物只需正确配置后端环境变量即可（参考上方启动后端章节）。
+
+> 跨平台提示：SQLite 驱动依赖 cgo，跨平台构建（如在 macOS 生成 Linux 版）需要目标平台的交叉编译工具链并设置 `CC`，例如 `CC=x86_64-linux-gnu-gcc GOOS=linux GOARCH=amd64 ./build_release.sh`，或在对应平台/容器内运行脚本。
+
+### 4) CI 自动出包
+- GitHub Actions 工作流：`.github/workflows/release.yml`
+- 触发：推送 `v*` 标签（自动创建 Release 并上传产物）或手动 `workflow_dispatch`（仅上传 workflow artifacts）
+- 产出：
+  - Linux: `content-hub-linux-amd64`、`content-hub-linux-arm64`
+  - macOS: `content-hub-darwin-arm64`
+  - Windows: `content-hub-windows-amd64.exe`（Ubuntu 上用 mingw-w64 交叉编译）
+  全部内置前端，下载后直接运行（配置后端环境变量即可）。
+
+### 4) 登录 & 权限
 - 首次启动会自动种子管理员账号：`admin / admin123`（可通过环境变量覆盖）。
 - 管理员：创建用户。
 - 普通用户：上传/查看/下载/分享。
