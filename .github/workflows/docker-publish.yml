@@ -1,0 +1,65 @@
+# 构建并推送多架构镜像到公有仓库（默认 Docker Hub）；如改用 GHCR，将 REGISTRY/IMAGE_NAME 改为 ghcr.io/<org>/<repo>。
+name: docker-publish
+
+on:
+  push:
+    branches: [main]     # 业务默认分支；如使用其他默认分支，请同步修改。
+    tags: ["v*"]         # 打 tag 时产出版本镜像。
+  workflow_dispatch:      # 手动触发，便于紧急重推或测试。
+
+env:
+  REGISTRY: docker.io
+  IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/content-hub
+  VITE_API_URL: /api      # 前端构建期的 API 前缀；若前后端分域，可改成完整 URL。
+  GO_VERSION: 1.24
+  NODE_VERSION: 22
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write    # 兼容推送到 GHCR 时所需；Docker Hub 不依赖此权限。
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU               # 允许跨架构构建（amd64/arm64）。
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx      # 启用 Buildx 以支持多架构与缓存。
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to registry         # 使用密钥登录仓库，避免匿名推送受限。
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch       # main -> latest
+            type=ref,event=tag          # v1.2.3 -> v1.2.3
+            type=sha                    # 回滚/溯源用 sha 标签
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          platforms: linux/amd64,linux/arm64   # 同时产出 x86 与 ARM 镜像。
+          build-args: |
+            VITE_API_URL=${{ env.VITE_API_URL }}
+            GO_VERSION=${{ env.GO_VERSION }}
+            NODE_VERSION=${{ env.NODE_VERSION }}
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache,mode=max

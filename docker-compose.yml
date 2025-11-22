@@ -1,0 +1,37 @@
+version: "3.9"
+
+# 说明：单服务编排文件，负责在部署机上构建镜像并运行 content-hub。
+# 若已推送远程镜像，可将 build 段删除，改用 image 引用远程地址。
+services:
+  content-hub:
+    # 构建镜像：多阶段 Dockerfile 会先编译前端，再编译后端二进制，最终生成单一运行镜像。
+    build:
+      context: .                  # 以仓库根目录为构建上下文，确保前端、后端代码都可用。
+      dockerfile: Dockerfile      # 使用仓库根的多阶段 Dockerfile。
+      args:
+        VITE_API_URL: /api        # 前端构建期注入的 API 前缀，默认同域 /api，若网关分域可改完整地址。
+        GO_VERSION: 1.24          # 可调整 Go 版本以匹配编译器；如镜像仓库无对应版本需同时修改。
+        NODE_VERSION: 22          # 前端构建使用的 Node 版本；与本地一致可避免兼容性差异。
+    image: content-hub:latest     # 本地构建生成的镜像名称与标签，推仓库时可改为 registry.example.com/xxx:tag。
+    environment:
+      PORT: 8080                  # 服务监听端口；修改后记得同步调整下方端口映射。
+      DB_PATH: /var/lib/content-hub/data/app.db   # SQLite 路径，位于持久化卷中。
+      UPLOAD_DIR: /var/lib/content-hub/uploads    # 上传文件存储路径，位于持久化卷中。
+      ALLOW_ORIGIN: https://example.com           # 允许的前端域名；如同域部署可设为具体站点，或在开发时设为 *。
+      JWT_SECRET: change-me-please                # 必须替换为高强度随机字符串，防止令牌被伪造。
+      GIN_MODE: release                           # Gin 运行模式：release/ debug，生产环境保持 release。
+    volumes:
+      - content_hub_data:/var/lib/content-hub     # 将数据库与上传目录落盘，避免容器销毁导致数据丢失。
+    ports:
+      - "8080:8080"               # 宿主机端口:容器端口；如需 80/443，可在此改为 "80:8080"/"443:8080" 并配合反代。
+    restart: unless-stopped       # 异常退出自动重启，手动 stop 不再自动拉起。
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]  # 健康检查命中后端 /health。
+      interval: 30s               # 检查间隔。
+      timeout: 5s                 # 单次超时时间。
+      retries: 3                  # 连续失败 3 次视为不健康。
+      start_period: 10s           # 启动后宽限期，避免冷启动误判。
+
+volumes:
+  content_hub_data:
+    driver: local                 # 使用本地主机卷驱动，便于备份与迁移。
