@@ -43,10 +43,14 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          # 标签策略说明：
+          # - 分支：main -> latest；其他分支 -> <branch>-<sha>
+          # - 标签：v1.2.3 -> v1.2.3
+          # - 回滚/溯源：始终打 sha 标签
           tags: |
-            type=ref,event=branch       # main -> latest
-            type=ref,event=tag          # v1.2.3 -> v1.2.3
-            type=sha                    # 回滚/溯源用 sha 标签
+            type=ref,event=branch
+            type=ref,event=tag
+            type=sha
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push

@@ -15,7 +15,31 @@ content-hub/
 ```
 
 ## 快速开始
-### 1) 启动后端
+### 1) Docker 方式（推荐）
+- 本地单机运行（需 Docker 与 docker compose v2）：  
+  ```bash
+  docker compose build          # 构建包含前后端的镜像
+  docker compose up -d          # 后台启动，默认 8080:8080
+  ```
+  > 配置均写在 `docker-compose.yml` 中，默认允许域名 `https://example.com`，请在部署前修改 `ALLOW_ORIGIN` 和 `JWT_SECRET`。
+
+- 使用远程镜像（不依赖源码）：删除 compose 的 `build` 段，改为  
+  ```yaml
+  image: docker.io/<your-namespace>/content-hub:1.0.0
+  ```
+  然后执行 `docker compose pull && docker compose up -d`。
+
+- 推送到公有仓库（Docker Hub 示例）：  
+  ```bash
+  docker build -t docker.io/<user>/content-hub:1.0.0 .
+  docker push docker.io/<user>/content-hub:1.0.0
+  ```
+  多架构推送可用 `docker buildx build --platform linux/amd64,linux/arm64 --push ...`。
+
+- GitHub Actions 自动推送镜像：`.github/workflows/docker-publish.yml`  
+  触发 `main` 分支、`v*` 标签或手动 dispatch，会构建多架构镜像并推送到 Docker Hub（需在仓库 Secrets 设置 `DOCKERHUB_USERNAME` 与 `DOCKERHUB_TOKEN`）。如需 GHCR，将 `REGISTRY/IMAGE_NAME` 改为 `ghcr.io/<org>/<repo>`。
+
+### 2) 启动后端（源码方式）
 ```bash
 cd content-hub/server
 # 可选：设置环境变量
@@ -31,7 +55,7 @@ go run .
 ```
 服务默认监听 `http://localhost:8080`，API 在 `/api`，文件分享公开路由 `/share/:token`。
 
-### 2) 启动前端
+### 3) 启动前端
 ```bash
 cd content-hub/web
 npm install
@@ -42,7 +66,7 @@ npm run dev -- --host
 ```
 默认开发端口 `5173`，接口地址可在 `.env` 配置 `VITE_API_URL`（默认 `http://localhost:8080/api`）。
 
-### 3) 一键打包单可执行文件
+### 4) 一键打包单可执行文件
 ```bash
 chmod +x build_release.sh
 ./build_release.sh             # 默认生成 dist/content-hub，前端 API 基座注入 /api（同源）
@@ -52,7 +76,7 @@ chmod +x build_release.sh
 
 > 跨平台提示：SQLite 驱动依赖 cgo，跨平台构建（如在 macOS 生成 Linux 版）需要目标平台的交叉编译工具链并设置 `CC`，例如 `CC=x86_64-linux-gnu-gcc GOOS=linux GOARCH=amd64 ./build_release.sh`，或在对应平台/容器内运行脚本。
 
-### 4) CI 自动出包
+### 5) CI 自动出包
 - GitHub Actions 工作流：`.github/workflows/release.yml`
 - 触发：推送 `v*` 标签（自动创建 Release 并上传产物）或手动 `workflow_dispatch`（仅上传 workflow artifacts）
 - 产出：
@@ -61,7 +85,7 @@ chmod +x build_release.sh
   - Windows: `content-hub-windows-amd64.exe`（Ubuntu 上用 mingw-w64 交叉编译）
   全部内置前端，下载后直接运行（配置后端环境变量即可）。
 
-### 4) 登录 & 权限
+### 6) 登录 & 权限
 - 首次启动会自动种子管理员账号：`admin / admin123`（可通过环境变量覆盖）。
 - 管理员：创建用户。
 - 普通用户：上传/查看/下载/分享。

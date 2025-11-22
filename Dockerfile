@@ -18,9 +18,10 @@ RUN npm run build
 
 # -------- 后端构建阶段：编译包含前端资源的二进制 --------
 FROM golang:${GO_VERSION}-alpine AS builder
+# 使用本地 Go 版本，避免在构建机上额外下载 toolchain。
 ENV CGO_ENABLED=1 \
     GOFLAGS="-trimpath" \
-    GOTOOLCHAIN=local  # 使用本地 Go 版本，避免在构建机上额外下载 toolchain。
+    GOTOOLCHAIN=local
 WORKDIR /app
 # SQLite 依赖需要 CGO，安装基础构建工具与头文件。
 RUN apk add --no-cache build-base sqlite-dev
