@@ -15,6 +15,16 @@ type LoginRequest struct {
 	Password string `json:"password" binding:"required"`
 }
 
+// Login 用户登录，返回 JWT 与用户信息。
+// @Summary 用户登录
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param payload body LoginRequest true "登录参数"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} map[string]string
+// @Failure 401 {object} map[string]string
+// @Router /login [post]
 func Login(db *gorm.DB, cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req LoginRequest

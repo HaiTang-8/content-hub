@@ -35,6 +35,14 @@ type ResetPasswordRequest struct {
 	Password string `json:"password"`
 }
 
+// CreateUser 创建新用户。
+// @Summary 创建用户
+// @Tags admin
+// @Accept json
+// @Produce json
+// @Param payload body CreateUserRequest true "用户信息"
+// @Security BearerAuth
+// @Router /admin/users [post]
 func CreateUser(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req CreateUserRequest
@@ -56,6 +64,11 @@ func CreateUser(db *gorm.DB) gin.HandlerFunc {
 }
 
 // ListUsers 以创建时间倒序返回所有用户，供管理员界面展示列表。
+// @Summary 用户列表
+// @Tags admin
+// @Produce json
+// @Security BearerAuth
+// @Router /admin/users [get]
 func ListUsers(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var users []models.User
@@ -72,6 +85,12 @@ func ListUsers(db *gorm.DB) gin.HandlerFunc {
 }
 
 // DeleteUser 允许管理员删除其他账号，并保护最后一名管理员与当前登录用户。
+// @Summary 删除用户
+// @Tags admin
+// @Produce json
+// @Param id path int true "用户ID"
+// @Security BearerAuth
+// @Router /admin/users/{id} [delete]
 func DeleteUser(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var target models.User
@@ -99,6 +118,14 @@ func DeleteUser(db *gorm.DB) gin.HandlerFunc {
 }
 
 // UpdateUserRole 支持在普通用户与管理员间切换，确保至少保留一名管理员。
+// @Summary 更新用户角色
+// @Tags admin
+// @Accept json
+// @Produce json
+// @Param id path int true "用户ID"
+// @Param payload body UpdateUserRoleRequest true "角色信息"
+// @Security BearerAuth
+// @Router /admin/users/{id}/role [patch]
 func UpdateUserRole(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req UpdateUserRoleRequest
@@ -130,6 +157,14 @@ func UpdateUserRole(db *gorm.DB) gin.HandlerFunc {
 }
 
 // ResetPassword 允许管理员重置指定用户密码，后端返回明文新密码便于传达给用户。
+// @Summary 重置用户密码
+// @Tags admin
+// @Accept json
+// @Produce json
+// @Param id path int true "用户ID"
+// @Param payload body ResetPasswordRequest true "可选自定义密码"
+// @Security BearerAuth
+// @Router /admin/users/{id}/reset-password [post]
 func ResetPassword(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req ResetPasswordRequest

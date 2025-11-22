@@ -45,6 +45,13 @@ var allowedScopes = map[models.APIScope]bool{
 }
 
 // CreateAPIKey 供管理员生成新的 Key，默认赋予上传权限并绑定资源归属用户。
+// @Summary 创建 API Key
+// @Tags admin
+// @Accept json
+// @Produce json
+// @Param payload body createAPIKeyRequest true "密钥配置"
+// @Security BearerAuth
+// @Router /admin/apikeys [post]
 func CreateAPIKey(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req createAPIKeyRequest
@@ -116,6 +123,11 @@ func CreateAPIKey(db *gorm.DB) gin.HandlerFunc {
 }
 
 // ListAPIKeys 返回所有密钥的元数据，脱敏展示 key 片段。
+// @Summary API Key 列表
+// @Tags admin
+// @Produce json
+// @Security BearerAuth
+// @Router /admin/apikeys [get]
 func ListAPIKeys(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var keys []models.APIKey
@@ -133,6 +145,12 @@ func ListAPIKeys(db *gorm.DB) gin.HandlerFunc {
 }
 
 // RevokeAPIKey 通过软删除方式撤销 Key，保留记录以便审计。
+// @Summary 撤销 API Key
+// @Tags admin
+// @Produce json
+// @Param id path int true "Key ID"
+// @Security BearerAuth
+// @Router /admin/apikeys/{id} [delete]
 func RevokeAPIKey(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")

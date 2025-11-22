@@ -36,6 +36,14 @@ type shareRequest struct {
 }
 
 // CreateShare 生成带安全策略的预览链接，默认要求登录且 7 天内有效。
+// @Summary 创建分享链接
+// @Tags shares
+// @Accept json
+// @Produce json
+// @Param id path int true "文件ID"
+// @Param payload body shareRequest true "分享配置"
+// @Security BearerAuth
+// @Router /files/{id}/share [post]
 func CreateShare(db *gorm.DB, cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var f models.File
@@ -128,6 +136,12 @@ func CreateShare(db *gorm.DB, cfg *config.Config) gin.HandlerFunc {
 }
 
 // GetShareMeta 返回预览所需的文件元信息，同时做访问权限判断但不增加计数。
+// @Summary 获取分享元信息
+// @Tags shares
+// @Produce json
+// @Param token path string true "分享 Token"
+// @Security BearerAuth
+// @Router /shares/{token} [get]
 func GetShareMeta(db *gorm.DB, cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		share, err := loadShare(db, c.Param("token"))
@@ -167,6 +181,12 @@ func GetShareMeta(db *gorm.DB, cfg *config.Config) gin.HandlerFunc {
 }
 
 // StreamShare 执行安全校验后以内联方式返回文件内容，不强制下载。
+// @Summary 预览/下载分享内容
+// @Tags shares
+// @Produce octet-stream
+// @Param token path string true "分享 Token"
+// @Security BearerAuth
+// @Router /shares/{token}/stream [get]
 func StreamShare(db *gorm.DB, cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		share, err := loadShare(db, c.Param("token"))
@@ -230,6 +250,12 @@ func StreamShare(db *gorm.DB, cfg *config.Config) gin.HandlerFunc {
 }
 
 // CleanShares 支持管理员一键清理失效分享，避免访问落到过期或缺失文件的链接。
+// @Summary 清理失效分享
+// @Tags admin
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Router /admin/shares/cleanup [post]
 func CleanShares(db *gorm.DB) gin.HandlerFunc {
 	type cleanRequest struct {
 		RemoveExpired     bool `json:"remove_expired"`
@@ -328,6 +354,11 @@ type shareListItem struct {
 }
 
 // ListShares 仅管理员可见，用于后台查看与治理分享链接。
+// @Summary 分享列表（管理员）
+// @Tags admin
+// @Produce json
+// @Security BearerAuth
+// @Router /admin/shares [get]
 func ListShares(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var shares []models.Share
@@ -363,6 +394,12 @@ func ListShares(db *gorm.DB) gin.HandlerFunc {
 }
 
 // RevokeShare 允许管理员撤销分享，立即失效。
+// @Summary 撤销分享
+// @Tags admin
+// @Produce json
+// @Param token path string true "分享 Token"
+// @Security BearerAuth
+// @Router /admin/shares/{token} [delete]
 func RevokeShare(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		token := c.Param("token")

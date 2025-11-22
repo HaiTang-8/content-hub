@@ -102,6 +102,15 @@ chmod +x build_release.sh
   - 管理员：`POST /api/admin/users` 创建用户
 - 公共分享：`GET /share/:token` 直接下载
 
+## API 文档（Swagger）
+- 本地启动后访问 `http://localhost:8080/swagger/index.html` 查看交互式接口文档，已定义 JWT（Authorization: Bearer）和 API Key（X-API-Key）两种鉴权。
+- 若更新 Handler 注释后需重新生成文档：
+  ```bash
+  cd server
+  go run github.com/swaggo/swag/cmd/swag@v1.16.6 init -g main.go -o docs
+  ```
+- 生产环境可按需为 `/swagger/*` 增加鉴权或关闭路由。
+
 ## 设计要点
 - 分层：`config/` `database/` `models/` `middleware/` `handlers/` `routes/`，便于后续扩展（如对象存储、审计日志、版本化等）。
 - 存储：默认 SQLite + 本地文件夹 `uploads/`，可替换为其他数据库/对象存储。

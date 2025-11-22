@@ -11,6 +11,8 @@ import (
 	"content-hub/server/models"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 	"gorm.io/gorm"
 )
 
@@ -62,6 +64,17 @@ func SetupRouter(db *gorm.DB, cfg *config.Config) (*gin.Engine, error) {
 		admin.POST("/shares/cleanup", handlers.CleanShares(db))
 		admin.DELETE("/shares/:token", handlers.RevokeShare(db))
 	}
+
+	// Swagger UI：单一路由，兼容 /swagger 与 /swagger/ 入口
+	swaggerHandler := ginSwagger.WrapHandler(swaggerFiles.Handler)
+	r.GET("/swagger/*any", func(c *gin.Context) {
+		p := c.Param("any")
+		if p == "" || p == "/" {
+			c.Redirect(http.StatusFound, "/swagger/index.html")
+			return
+		}
+		swaggerHandler(c)
+	})
 
 	// legacy download 地址不再使用，返回提示，避免暴露真实下载入口
 	r.GET("/share/:token", handlers.LegacyShareRedirect())

@@ -27,6 +27,12 @@ type FileResponse struct {
 	CreatedAt   time.Time `json:"created_at"`
 }
 
+// ListFiles 列出当前用户可见的文件列表。
+// @Summary 获取文件列表
+// @Tags files
+// @Produce json
+// @Security BearerAuth
+// @Router /files [get]
 func ListFiles(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var files []models.File
@@ -51,6 +57,17 @@ func ListFiles(db *gorm.DB) gin.HandlerFunc {
 	}
 }
 
+// UploadFile 支持文件或纯文本上传，允许 JWT 或 API Key 鉴权。
+// @Summary 上传文件或文字
+// @Tags files
+// @Accept mpfd
+// @Produce json
+// @Param file formData file false "上传文件"
+// @Param text formData string false "纯文本内容"
+// @Param description formData string false "描述"
+// @Security BearerAuth
+// @Security ApiKeyAuth
+// @Router /files [post]
 func UploadFile(db *gorm.DB, cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userIDVal, exists := c.Get("userID")
@@ -113,6 +130,13 @@ func UploadFile(db *gorm.DB, cfg *config.Config) gin.HandlerFunc {
 }
 
 func DownloadFile(db *gorm.DB) gin.HandlerFunc {
+	// DownloadFile 通过附件形式下载指定文件。
+	// @Summary 下载文件
+	// @Tags files
+	// @Produce octet-stream
+	// @Param id path int true "文件ID"
+	// @Security BearerAuth
+	// @Router /files/{id}/download [get]
 	return func(c *gin.Context) {
 		var f models.File
 		if err := db.First(&f, c.Param("id")).Error; err != nil {
@@ -125,6 +149,13 @@ func DownloadFile(db *gorm.DB) gin.HandlerFunc {
 
 // GetFileInfo returns metadata.
 func GetFileInfo(db *gorm.DB) gin.HandlerFunc {
+	// GetFileInfo 获取文件元数据。
+	// @Summary 获取文件信息
+	// @Tags files
+	// @Produce json
+	// @Param id path int true "文件ID"
+	// @Security BearerAuth
+	// @Router /files/{id} [get]
 	return func(c *gin.Context) {
 		var f models.File
 		if err := db.Preload("Owner").First(&f, c.Param("id")).Error; err != nil {
@@ -146,6 +177,13 @@ func GetFileInfo(db *gorm.DB) gin.HandlerFunc {
 
 // StreamFile returns raw content preview (text/image) with MIME.
 func StreamFile(db *gorm.DB) gin.HandlerFunc {
+	// StreamFile 以内联方式预览文件内容。
+	// @Summary 预览文件
+	// @Tags files
+	// @Produce octet-stream
+	// @Param id path int true "文件ID"
+	// @Security BearerAuth
+	// @Router /files/{id}/stream [get]
 	return func(c *gin.Context) {
 		var f models.File
 		if err := db.First(&f, c.Param("id")).Error; err != nil {
@@ -167,6 +205,13 @@ func StreamFile(db *gorm.DB) gin.HandlerFunc {
 // DeleteFile performs role-aware deletion. Users soft-delete their own uploads,
 // admins can permanently delete any record (including already soft-deleted ones).
 func DeleteFile(db *gorm.DB) gin.HandlerFunc {
+	// DeleteFile 删除文件，管理员为物理删除，普通用户为软删除。
+	// @Summary 删除文件
+	// @Tags files
+	// @Produce json
+	// @Param id path int true "文件ID"
+	// @Security BearerAuth
+	// @Router /files/{id} [delete]
 	return func(c *gin.Context) {
 		roleVal, _ := c.Get("role")
 		role, _ := roleVal.(string)
