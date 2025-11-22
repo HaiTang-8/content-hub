@@ -1,0 +1,30 @@
+version: "3.9"
+
+# 生产部署示例：直接使用已推送到 Docker Hub 的镜像，无需在服务器上构建。
+# 请将 <your-namespace> 和 <tag> 替换为你自己的仓库命名空间与版本号。
+services:
+  content-hub:
+    image: docker.io/zhaohaitang/content-hub
+    container_name: content-hub
+    environment:
+      PORT: 8080                                 # 应用监听端口；修改后需同步下方端口映射。
+      DB_PATH: /var/lib/content-hub/data/app.db  # SQLite 文件路径，位于持久化卷中。
+      UPLOAD_DIR: /var/lib/content-hub/uploads   # 上传文件存储目录，位于持久化卷中。
+      ALLOW_ORIGIN: https://your-domain.com      # 允许的前端域名；同域部署请改为实际站点，调试可设为 *。
+      JWT_SECRET: change-me-please               # 必须改为高强度随机值，防止令牌被伪造。
+      GIN_MODE: release                          # 生产环境保持 release，减少日志和调试开销。
+    volumes:
+      - content_hub_data:/var/lib/content-hub    # 持久化数据库和上传文件，容器重建后数据不丢失。
+    ports:
+      - "8080:8080"                              # 宿主机:容器端口；若走反代可改为 "80:8080" 或 "443:8080"。
+    restart: unless-stopped                      # 异常退出自动拉起，手动 stop 不再自动恢复。
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]  # 健康检查命中后端 /health。
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  content_hub_data:
+    driver: local                                # 使用本地卷驱动，便于备份和迁移。

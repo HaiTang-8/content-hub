@@ -39,7 +39,8 @@ RUN go build -o /app/bin/content-hub .
 
 # -------- 运行时阶段：仅保留最小依赖的镜像 --------
 FROM alpine:3.20 AS runtime
-RUN apk add --no-cache ca-certificates sqlite-libs tzdata wget
+# 运行时仅保留必要依赖；su-exec 用于启动时降权与动态修复卷权限。
+RUN apk add --no-cache ca-certificates sqlite-libs tzdata wget su-exec
 ENV PORT=8080 \
     DB_PATH=/var/lib/content-hub/data/app.db \
     UPLOAD_DIR=/var/lib/content-hub/uploads \
@@ -47,13 +48,15 @@ ENV PORT=8080 \
     JWT_SECRET=change-me \
     GIN_MODE=release
 WORKDIR /app
-# 拷贝编译好的二进制。
+# 拷贝编译好的二进制与入口脚本。
 COPY --from=builder /app/bin/content-hub /usr/local/bin/content-hub
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 # 创建运行所需目录和非 root 用户，降低容器权限风险。
 RUN addgroup -S contenthub && adduser -S contenthub -G contenthub \
     && mkdir -p /var/lib/content-hub/data /var/lib/content-hub/uploads /var/log/content-hub \
-    && chown -R contenthub:contenthub /var/lib/content-hub /var/log/content-hub
-USER contenthub
+    && chown -R contenthub:contenthub /var/lib/content-hub /var/log/content-hub \
+    && chmod +x /usr/local/bin/entrypoint.sh
 EXPOSE 8080
 VOLUME ["/var/lib/content-hub"]
-ENTRYPOINT ["content-hub"]
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+CMD ["content-hub"]
