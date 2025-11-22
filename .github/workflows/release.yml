@@ -181,19 +181,21 @@ jobs:
         run: |
           set -euo pipefail
           choco install -y mingw
-          ./build_release.sh
+          OUT_DIR=$(cygpath -u "$OUTPUT_DIR")
+          mkdir -p "$OUT_DIR"
+          OUTPUT_DIR="$OUT_DIR" ./build_release.sh
 
       - name: Verify artifact
         run: |
           set -euo pipefail
-          ls -lah ${{ github.workspace }}/dist
-          test -f ${{ github.workspace }}/dist/content-hub-windows-amd64.exe
+          ls -lah dist || true
+          test -f dist/content-hub-windows-amd64.exe
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: content-hub-windows-amd64
-          path: ${{ github.workspace }}/dist/content-hub-windows-amd64.exe
+          path: dist/content-hub-windows-amd64.exe
 
   release:
     needs: [linux, macos, windows]
