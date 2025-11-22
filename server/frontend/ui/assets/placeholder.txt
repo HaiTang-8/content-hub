@@ -1,0 +1,1 @@
+This placeholder keeps the embed directive valid during development builds without bundled assets.

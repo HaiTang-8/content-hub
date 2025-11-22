@@ -3,6 +3,7 @@ import Login from './views/Login'
 import Content from './views/Content'
 import UserManagement from './views/UserManagement'
 import ShareManage from './views/ShareManage'
+import ApiKeyManage from './views/ApiKeyManage'
 import Shell from './views/Shell'
 import { useAuthStore } from './store/auth'
 import SharePreview from './views/SharePreview'
@@ -56,6 +57,14 @@ function App() {
             element={
               <AdminRoute>
                 <ShareManage />
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/apikeys"
+            element={
+              <AdminRoute>
+                <ApiKeyManage />
               </AdminRoute>
             }
           />

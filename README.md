@@ -94,10 +94,11 @@ chmod +x build_release.sh
 - `POST /api/login` 登录，返回 token。
 - 需登录：
   - `GET /api/files` 列表
-  - `POST /api/files` 上传文件或文字（multipart：file? + text? + description?）
+  - `POST /api/files` 上传文件或文字（multipart：file? + text? + description?）；亦支持携带 `X-API-Key` 进行匿名上传，需包含 `files:upload` scope
   - `GET /api/files/:id/download` 下载
   - `GET /api/files/:id/stream` 预览
   - `POST /api/files/:id/share` 生成分享 token
+  - 管理员：`GET/POST/DELETE /api/admin/apikeys` 管理 API Key（绑定归属用户，支持过期与撤销）
   - 管理员：`POST /api/admin/users` 创建用户
 - 公共分享：`GET /share/:token` 直接下载
 

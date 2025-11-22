@@ -53,8 +53,12 @@ func ListFiles(db *gorm.DB) gin.HandlerFunc {
 
 func UploadFile(db *gorm.DB, cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		userIDVal, _ := c.Get("userID")
-		userID := userIDVal.(uint)
+		userIDVal, exists := c.Get("userID")
+		userID, ok := userIDVal.(uint)
+		if !exists || !ok {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "无法识别上传者，请重新登录或检查 API Key"})
+			return
+		}
 
 		description := c.PostForm("description")
 		textContent := c.PostForm("text")
