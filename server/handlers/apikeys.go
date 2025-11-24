@@ -40,6 +40,21 @@ type createAPIKeyResponse struct {
 	PlainKey string `json:"plain_key"`
 }
 
+// verifyAPIKeyRequest 支持从 Header 或 JSON 中读取明文 Key，可选 scope 用于校验授权。
+type verifyAPIKeyRequest struct {
+	APIKey string `json:"api_key"`
+	Scope  string `json:"scope"`
+}
+
+// verifyAPIKeyResponse 返回验证结果及与权限相关的基础元数据，供前端在提交前做即时提示。
+type verifyAPIKeyResponse struct {
+	Valid     bool       `json:"valid"`
+	Scopes    []string   `json:"scopes"`
+	ExpiresAt *time.Time `json:"expires_at"`
+	BoundUser apiKeyUser `json:"bound_user"`
+	Message   string     `json:"message"`
+}
+
 var allowedScopes = map[models.APIScope]bool{
 	models.ScopeFilesUpload: true,
 }
@@ -174,6 +189,69 @@ func RevokeAPIKey(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"message": "API Key 已撤销"})
+	}
+}
+
+// VerifyAPIKey 校验明文 API Key 是否有效，以及是否具备指定 scope（默认 files:upload）。
+// 设计为公有接口，方便客户端在保存密钥后先行检测权限，减少正式调用时的失败概率。
+// @Summary 校验 API Key 有效性
+// @Tags apikey
+// @Accept json
+// @Produce json
+// @Param X-API-Key header string false "明文 API Key"
+// @Param payload body verifyAPIKeyRequest false "可选：api_key 与 scope，若未提供则默认 files:upload"
+// @Router /apikeys/verify [post]
+func VerifyAPIKey(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var req verifyAPIKeyRequest
+		// 忽略解析错误，允许纯 Header 调用；解析成功时优先使用 body 内的值。
+		_ = c.ShouldBindJSON(&req)
+
+		rawKey := strings.TrimSpace(c.GetHeader("X-API-Key"))
+		if req.APIKey != "" { // JSON 中携带 api_key 时覆盖 Header，便于表单调试
+			rawKey = strings.TrimSpace(req.APIKey)
+		}
+		if rawKey == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "缺少 X-API-Key 请求头或 api_key 字段"})
+			return
+		}
+
+		hashed := models.HashAPIKey(rawKey)
+		var key models.APIKey
+		if err := db.Preload("BoundUser").Where("hashed_key = ?", hashed).First(&key).Error; err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "API Key 无效或不存在"})
+			return
+		}
+		if key.Revoked {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "API Key 已被撤销"})
+			return
+		}
+		if key.ExpiresAt != nil && time.Now().After(*key.ExpiresAt) {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "API Key 已过期"})
+			return
+		}
+
+		requiredScope := strings.TrimSpace(req.Scope)
+		if requiredScope == "" {
+			requiredScope = string(models.ScopeFilesUpload)
+		}
+		if !key.HasScope(models.APIScope(requiredScope)) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "API Key 未授权访问该 scope"})
+			return
+		}
+
+		// 记录验证行为的最后使用时间，方便后台了解密钥活跃度，但不阻断正常响应。
+		now := time.Now()
+		_ = db.Model(&key).UpdateColumn("last_used_at", now).Error
+
+		resp := verifyAPIKeyResponse{
+			Valid:     true,
+			Scopes:    key.ScopeList(),
+			ExpiresAt: key.ExpiresAt,
+			BoundUser: apiKeyUser{ID: key.BoundUserID, Username: key.BoundUser.Username},
+			Message:   "API Key 可用",
+		}
+		c.JSON(http.StatusOK, resp)
 	}
 }
 

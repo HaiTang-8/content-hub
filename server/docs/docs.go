@@ -298,6 +298,37 @@ const docTemplate = `{
                 "responses": {}
             }
         },
+        "/apikeys/verify": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "apikey"
+                ],
+                "summary": "校验 API Key 有效性",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "明文 API Key",
+                        "name": "X-API-Key",
+                        "in": "header"
+                    },
+                    {
+                        "description": "可选：api_key 与 scope，若未提供则默认 files:upload",
+                        "name": "payload",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.verifyAPIKeyRequest"
+                        }
+                    }
+                ],
+                "responses": {}
+            }
+        },
         "/files": {
             "get": {
                 "security": [
@@ -599,6 +630,17 @@ const docTemplate = `{
                 },
                 "require_login": {
                     "type": "boolean"
+                }
+            }
+        },
+        "handlers.verifyAPIKeyRequest": {
+            "type": "object",
+            "properties": {
+                "api_key": {
+                    "type": "string"
+                },
+                "scope": {
+                    "type": "string"
                 }
             }
         }

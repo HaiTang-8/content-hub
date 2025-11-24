@@ -68,6 +68,13 @@ definitions:
       require_login:
         type: boolean
     type: object
+  handlers.verifyAPIKeyRequest:
+    properties:
+      api_key:
+        type: string
+      scope:
+        type: string
+    type: object
 host: localhost:8080
 info:
   contact: {}
@@ -249,6 +256,26 @@ paths:
       summary: 更新用户角色
       tags:
       - admin
+  /apikeys/verify:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 明文 API Key
+        in: header
+        name: X-API-Key
+        type: string
+      - description: 可选：api_key 与 scope，若未提供则默认 files:upload
+        in: body
+        name: payload
+        schema:
+          $ref: '#/definitions/handlers.verifyAPIKeyRequest'
+      produces:
+      - application/json
+      responses: {}
+      summary: 校验 API Key 有效性
+      tags:
+      - apikey
   /files:
     get:
       produces:

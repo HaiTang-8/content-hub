@@ -31,6 +31,7 @@ func SetupRouter(db *gorm.DB, cfg *config.Config) (*gin.Engine, error) {
 	api := r.Group("/api")
 	{
 		api.POST("/login", handlers.Login(db, cfg))
+		api.POST("/apikeys/verify", handlers.VerifyAPIKey(db))
 		// 分享预览接口：根据分享策略可选登录
 		api.GET("/shares/:token", handlers.GetShareMeta(db, cfg))
 		api.GET("/shares/:token/stream", handlers.StreamShare(db, cfg))
