@@ -34,6 +34,7 @@ import { fetchUsers } from '../api/users'
 import { useAuthStore } from '../store/auth'
 import { toast } from 'sonner'
 import PreviewDialog from '../components/preview/PreviewDialog'
+import DownloadProgress from '../components/DownloadProgress'
 
 const typeOfFile = (mime, filename = '') => {
   if (!mime) return 'other'
@@ -425,6 +426,8 @@ const Content = () => {
   const [previewing, setPreviewing] = useState(null)
 	// 记录正在下载的文件 ID，防止重复点击导致多次请求或误判未登录
 	const [downloadingId, setDownloadingId] = useState(null)
+  // 按文件记录下载百分比，给出实时反馈；对象结构便于多文件并发下载
+  const [downloadProgress, setDownloadProgress] = useState({})
 	const [search, setSearch] = useState('')
 	const [ownerFilter, setOwnerFilter] = useState('all')
 	const [typeFilter, setTypeFilter] = useState('all')
@@ -519,8 +522,20 @@ const Content = () => {
 	const handleDownload = async (file) => {
 		if (!file) return
 		setDownloadingId(file.id)
+		// 下载开始时将进度重置为 0，后续根据 Content-Length 逐步更新
+		setDownloadProgress((prev) => ({ ...prev, [file.id]: 0 }))
+		let success = false
 		try {
-			const { data } = await downloadFile(file.id, { responseType: 'blob' })
+			const { data } = await downloadFile(file.id, {
+				responseType: 'blob',
+        // 利用浏览器进度事件回调，展示精确百分比；若无 total 则跳过
+        onDownloadProgress: (event) => {
+          const total = event?.total || file.size
+          if (!total) return
+          const percent = Math.min(100, Math.round((event.loaded / total) * 100))
+          setDownloadProgress((prev) => ({ ...prev, [file.id]: percent }))
+        },
+			})
 			const url = URL.createObjectURL(data)
 			const anchor = document.createElement('a')
 			anchor.href = url
@@ -530,6 +545,7 @@ const Content = () => {
 			anchor.click()
 			document.body.removeChild(anchor)
 			URL.revokeObjectURL(url)
+			success = true
 		} catch (err) {
 			const status = err.response?.status
 			if (status === 401) {
@@ -543,6 +559,24 @@ const Content = () => {
 			}
 		} finally {
 			setDownloadingId(null)
+			if (success) {
+				// 确保进度条收尾到 100%，短暂展示后再清理状态，避免界面闪烁
+				setDownloadProgress((prev) => ({ ...prev, [file.id]: 100 }))
+				setTimeout(() => {
+					setDownloadProgress((prev) => {
+						const next = { ...prev }
+						delete next[file.id]
+						return next
+					})
+				}, 500)
+			} else {
+				// 失败时直接移除进度记录，避免误导用户
+				setDownloadProgress((prev) => {
+					const next = { ...prev }
+					delete next[file.id]
+					return next
+				})
+			}
 		}
 	}
 
@@ -747,6 +781,14 @@ const Content = () => {
                         )}
                       </div>
                     </div>
+                    {/* 有进度时补充百分比提示，移动端同样可见 */}
+                    {downloadProgress[f.id] !== undefined && (
+                      <DownloadProgress
+                        percent={downloadProgress[f.id]}
+                        label={downloadProgress[f.id] === 100 ? '下载完成' : '下载中'}
+                        className="mt-2"
+                      />
+                    )}
                     </CardContent>
                   </Card>
                   </div>

@@ -9,6 +9,7 @@ import { Badge } from '../components/ui/badge'
 import { useAuthStore } from '../store/auth'
 import { downloadShare, getShareMeta, streamShare } from '../api/shares'
 import { toast } from 'sonner'
+import DownloadProgress from '../components/DownloadProgress'
 
 dayjs.extend(relativeTime)
 
@@ -32,6 +33,8 @@ const SharePreview = () => {
   const [previewLoading, setPreviewLoading] = useState(false)
   // 控制下载按钮的加载态，避免重复触发后端计数
   const [downloading, setDownloading] = useState(false)
+  // 记录下载百分比，方便大文件下载时给出实时提示
+  const [downloadPercent, setDownloadPercent] = useState(null)
   const [error, setError] = useState(null)
 
   // 拉取元信息：受限于登录或指定用户会返回对应错误
@@ -102,8 +105,19 @@ const SharePreview = () => {
   const handleDownload = async () => {
     if (!meta) return
     setDownloading(true)
+    setDownloadPercent(0)
+    let success = false
     try {
-      const { data } = await downloadShare(token, { responseType: 'blob' })
+      const { data } = await downloadShare(token, {
+        responseType: 'blob',
+        // 监听进度事件并基于 total/文件大小计算百分比，保证移动端也有反馈
+        onDownloadProgress: (event) => {
+          const total = event?.total || meta?.size
+          if (!total) return
+          const percent = Math.min(100, Math.round((event.loaded / total) * 100))
+          setDownloadPercent(percent)
+        },
+      })
       const url = URL.createObjectURL(data)
       const anchor = document.createElement('a')
       anchor.href = url
@@ -113,6 +127,7 @@ const SharePreview = () => {
       anchor.click()
       document.body.removeChild(anchor)
       URL.revokeObjectURL(url)
+      success = true
     } catch (err) {
       const status = err.response?.status
       if (status === 401) {
@@ -128,6 +143,13 @@ const SharePreview = () => {
       }
     } finally {
       setDownloading(false)
+      if (success) {
+        // 进度补足 100% 后稍作停留，便于用户确认完成态
+        setDownloadPercent(100)
+        setTimeout(() => setDownloadPercent(null), 600)
+      } else {
+        setDownloadPercent(null)
+      }
     }
   }
 
@@ -259,6 +281,13 @@ const SharePreview = () => {
                     </Button>
                   </div>
                 </div>
+                {downloadPercent !== null && (
+                  <DownloadProgress
+                    percent={downloadPercent}
+                    label={downloadPercent === 100 ? '下载完成' : '下载中'}
+                    className="w-full sm:w-80"
+                  />
+                )}
                 <CardDescription className="flex flex-wrap gap-3 text-sm text-slate-600">
                   <span>分享者：{meta.owner}</span>
                   <span>大小：{(meta.size / 1024).toFixed(1)} KB</span>

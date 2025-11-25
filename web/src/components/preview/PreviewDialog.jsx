@@ -11,6 +11,7 @@ import PreviewText from './PreviewText'
 import PreviewUnsupported from './PreviewUnsupported'
 import PreviewPdf from './PreviewPdf'
 import PreviewSpreadsheet from './PreviewSpreadsheet'
+import DownloadProgress from '../DownloadProgress'
 
 /**
  * 根据文件 MIME 与文件名判断可渲染的类型，兼顾移动端与桌面端的表现。
@@ -45,6 +46,8 @@ const PreviewDialog = ({ open, file, onClose }) => {
   const [preview, setPreview] = useState(emptyPreview)
   // 独立的下载加载态，避免重复点击导致多次请求或缺失鉴权头
   const [downloading, setDownloading] = useState(false)
+  // 记录下载百分比，便于大文件场景向用户提供及时反馈
+  const [downloadPercent, setDownloadPercent] = useState(null)
 
   const kind = useMemo(() => detectPreviewKind(file), [file])
 
@@ -102,8 +105,19 @@ const PreviewDialog = ({ open, file, onClose }) => {
   const handleDownload = async () => {
     if (!file) return
     setDownloading(true)
+    setDownloadPercent(0)
+    let success = false
     try {
-      const { data } = await downloadFile(file.id, { responseType: 'blob' })
+      const { data } = await downloadFile(file.id, {
+        responseType: 'blob',
+        // 若后端返回 Content-Length，则实时计算进度；否则回退为不定进度
+        onDownloadProgress: (event) => {
+          const total = event?.total || file.size
+          if (!total) return
+          const percent = Math.min(100, Math.round((event.loaded / total) * 100))
+          setDownloadPercent(percent)
+        },
+      })
       const url = URL.createObjectURL(data)
       const anchor = document.createElement('a')
       anchor.href = url
@@ -113,6 +127,7 @@ const PreviewDialog = ({ open, file, onClose }) => {
       anchor.click()
       document.body.removeChild(anchor)
       URL.revokeObjectURL(url)
+      success = true
     } catch (err) {
       const status = err.response?.status
       if (status === 401) {
@@ -126,6 +141,13 @@ const PreviewDialog = ({ open, file, onClose }) => {
       }
     } finally {
       setDownloading(false)
+      if (success) {
+        // 完成时强制补足 100%，延时清空避免 UI 抖动
+        setDownloadPercent(100)
+        setTimeout(() => setDownloadPercent(null), 600)
+      } else {
+        setDownloadPercent(null)
+      }
     }
   }
 
@@ -158,6 +180,7 @@ const PreviewDialog = ({ open, file, onClose }) => {
       <PreviewUnsupported
         onDownload={handleDownload}
         downloading={downloading}
+        percent={downloadPercent}
         filename={file.filename}
       />
     )
@@ -166,40 +189,49 @@ const PreviewDialog = ({ open, file, onClose }) => {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 py-6">
       <div className="relative flex w-full max-w-5xl flex-col rounded-2xl border border-slate-200 bg-white shadow-card">
-        <div className="flex flex-col gap-2 border-b border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0">
-            <p className="text-base font-semibold text-slate-900 truncate" title={file.filename}>
-              {file.filename}
-            </p>
-            <p className="text-xs text-slate-500">类型：{file.mime_type || '未知'} · 上传者：{file.owner}</p>
+        <div className="space-y-2 border-b border-slate-100 px-5 py-4">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <p className="text-base font-semibold text-slate-900 truncate" title={file.filename}>
+                {file.filename}
+              </p>
+              <p className="text-xs text-slate-500">类型：{file.mime_type || '未知'} · 上传者：{file.owner}</p>
+            </div>
+            <div className="flex items-center gap-2">
+              {/* 类型徽标与下载按钮保持一致高度，避免顶部操作区在不同屏宽下错位 */}
+              <Badge
+                variant="secondary"
+                className="flex h-9 items-center rounded-xl px-4 text-sm font-semibold"
+              >
+                {previewLabelMap[kind] || '文件'}
+              </Badge>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-9 px-4"
+                onClick={handleDownload}
+                disabled={downloading}
+              >
+                <DownloadCloud className="h-4 w-4" />
+                {downloading ? '下载中...' : '下载'}
+              </Button>
+              <button
+                type="button"
+                aria-label="关闭预览"
+                className="rounded-full p-2 text-slate-500 transition hover:bg-slate-100"
+                onClick={onClose}
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            {/* 类型徽标与下载按钮保持一致高度，避免顶部操作区在不同屏宽下错位 */}
-            <Badge
-              variant="secondary"
-              className="flex h-9 items-center rounded-xl px-4 text-sm font-semibold"
-            >
-              {previewLabelMap[kind] || '文件'}
-            </Badge>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-9 px-4"
-              onClick={handleDownload}
-              disabled={downloading}
-            >
-              <DownloadCloud className="h-4 w-4" />
-              {downloading ? '下载中...' : '下载'}
-            </Button>
-            <button
-              type="button"
-              aria-label="关闭预览"
-              className="rounded-full p-2 text-slate-500 transition hover:bg-slate-100"
-              onClick={onClose}
-            >
-              <X className="h-5 w-5" />
-            </button>
-          </div>
+          {downloadPercent !== null && (
+            <DownloadProgress
+              percent={downloadPercent}
+              label={downloadPercent === 100 ? '下载完成' : '下载中'}
+              className="w-full sm:w-80"
+            />
+          )}
         </div>
         <div className="max-h-[78vh] overflow-auto px-5 py-4">{renderBody()}</div>
       </div>
