@@ -5,16 +5,20 @@ ARG GO_VERSION=1.24
 ARG NODE_VERSION=22
 
 # -------- 前端构建阶段：产出 dist 供后端 embed --------
-FROM node:${NODE_VERSION}-alpine AS frontend
+# 使用 build 平台构建前端，避免在 arm64 目标上触发 QEMU 运行 node，减少一倍时间。
+FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-alpine AS frontend
 WORKDIR /app/web
 # 单独复制依赖描述文件，利用 Docker 缓存加速重复构建。
 COPY web/package*.json ./
-RUN npm ci
+# 缓存 npm 下载目录，重复构建时无需重新拉取依赖。
+RUN --mount=type=cache,id=npm-cache,target=/root/.npm \
+    npm ci --prefer-offline --progress=false --no-audit
 # 拉入剩余前端源码并编译为静态资源。
 COPY web .
 ARG VITE_API_URL=/api
 ENV VITE_API_URL=${VITE_API_URL}
-RUN npm run build
+RUN --mount=type=cache,id=npm-cache,target=/root/.npm \
+    npm run build
 
 # -------- 后端构建阶段：编译包含前端资源的二进制 --------
 FROM golang:${GO_VERSION}-alpine AS builder
@@ -28,14 +32,19 @@ RUN apk add --no-cache build-base sqlite-dev
 # 预先下载依赖，减少后续变动导致的缓存失效。
 COPY server/go.mod server/go.sum ./server/
 WORKDIR /app/server
-RUN go mod download
+ARG TARGETARCH
+# 共享依赖源码缓存，减少多架构重复下载；编译缓存仍按架构隔离。
+RUN --mount=type=cache,id=gomod-cache,target=/go/pkg/mod \
+    go mod download
 # 复制完整后端源码。
 COPY server .
 # 用最新前端构建产物覆盖 embed 路径，确保最终二进制自带 UI。
 RUN rm -rf frontend/ui && mkdir -p frontend/ui
 COPY --from=frontend /app/web/dist/ ./frontend/ui/
 # 编译最终可执行文件。
-RUN go build -o /app/bin/content-hub .
+RUN --mount=type=cache,id=gomod-cache,target=/go/pkg/mod \
+    --mount=type=cache,id=gobuild-${TARGETARCH},target=/root/.cache/go-build \
+    go build -o /app/bin/content-hub .
 
 # -------- 运行时阶段：仅保留最小依赖的镜像 --------
 FROM alpine:3.20 AS runtime
