@@ -35,6 +35,7 @@ func SetupRouter(db *gorm.DB, cfg *config.Config) (*gin.Engine, error) {
 		// 分享预览接口：根据分享策略可选登录
 		api.GET("/shares/:token", handlers.GetShareMeta(db, cfg))
 		api.GET("/shares/:token/stream", handlers.StreamShare(db, cfg))
+		api.GET("/shares/:token/download", handlers.DownloadShare(db, cfg))
 
 		// 文件上传支持 JWT 或 API Key 两种鉴权方式，便于未来按 scope 扩展到更多接口
 		api.POST("/files", middleware.APIKeyOrAuth(db, cfg, models.ScopeFilesUpload), handlers.UploadFile(db, cfg))

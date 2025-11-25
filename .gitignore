@@ -3,6 +3,7 @@ server/data/
 server/uploads/
 server/.env
 server/.gocache
+.gocache
 
 # Node
 web/node_modules/

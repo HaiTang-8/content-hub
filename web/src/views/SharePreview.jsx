@@ -7,7 +7,7 @@ import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
 import { Badge } from '../components/ui/badge'
 import { useAuthStore } from '../store/auth'
-import { getShareMeta, streamShare } from '../api/shares'
+import { downloadShare, getShareMeta, streamShare } from '../api/shares'
 import { toast } from 'sonner'
 
 dayjs.extend(relativeTime)
@@ -30,8 +30,8 @@ const SharePreview = () => {
   const [textContent, setTextContent] = useState('')
   const [loading, setLoading] = useState(true)
   const [previewLoading, setPreviewLoading] = useState(false)
-  // 预先缓存预览二进制数据，下载时直接复用，避免重复消耗浏览次数
-  const [previewBlob, setPreviewBlob] = useState(null)
+  // 控制下载按钮的加载态，避免重复触发后端计数
+  const [downloading, setDownloading] = useState(false)
   const [error, setError] = useState(null)
 
   // 拉取元信息：受限于登录或指定用户会返回对应错误
@@ -63,7 +63,6 @@ const SharePreview = () => {
     if (!meta) return
     setPreviewLoading(true)
     setTextContent('')
-    setPreviewBlob(null)
     // 每次重新获取前释放旧的 blob URL，避免多次预览导致内存泄漏
     if (previewUrl) {
       URL.revokeObjectURL(previewUrl)
@@ -73,7 +72,6 @@ const SharePreview = () => {
       const { data } = await streamShare(token, { responseType: 'blob' })
       const url = URL.createObjectURL(data)
       setPreviewUrl(url)
-      setPreviewBlob(data)
 
       // 文本类文件直接解码为字符串，移动端也方便查看与复制
       if (detectType(meta.mime_type, meta.filename) === 'text') {
@@ -100,22 +98,37 @@ const SharePreview = () => {
     }
   }
 
-  // 依赖已缓存 blob 发起浏览器下载，确保不会重复请求造成额外次数消耗
-  const handleDownload = () => {
-    if (!previewBlob || !meta) {
-      toast.error('文件尚未加载完成，稍后再试')
-      return
+  // 直接走后端下载接口，保证每次点击都会占用一次分享次数，避免前端缓存导致无限下载
+  const handleDownload = async () => {
+    if (!meta) return
+    setDownloading(true)
+    try {
+      const { data } = await downloadShare(token, { responseType: 'blob' })
+      const url = URL.createObjectURL(data)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = meta.filename
+      anchor.style.display = 'none'
+      document.body.appendChild(anchor)
+      anchor.click()
+      document.body.removeChild(anchor)
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      const status = err.response?.status
+      if (status === 401) {
+        setError('该分享需要登录后下载')
+      } else if (status === 403) {
+        setError('您不是被允许的访问者，无法下载该分享')
+      } else if (status === 410) {
+        setError('分享已失效或次数已用尽，无法继续下载')
+      } else if (status === 404) {
+        setError('分享文件已被删除或移动，无法下载')
+      } else {
+        toast.error('下载失败', { description: err.response?.data?.error || err.message })
+      }
+    } finally {
+      setDownloading(false)
     }
-
-    const url = URL.createObjectURL(previewBlob)
-    const anchor = document.createElement('a')
-    anchor.href = url
-    anchor.download = meta.filename
-    anchor.style.display = 'none'
-    document.body.appendChild(anchor)
-    anchor.click()
-    document.body.removeChild(anchor)
-    URL.revokeObjectURL(url)
   }
 
   useEffect(() => {
@@ -232,9 +245,9 @@ const SharePreview = () => {
                       variant="secondary"
                       className="flex-1 gap-2 sm:flex-none"
                       onClick={handleDownload}
-                      disabled={!previewBlob || previewLoading}
+                      disabled={previewLoading || downloading}
                     >
-                      <Download className="h-4 w-4" /> 下载文件
+                      <Download className="h-4 w-4" /> {downloading ? '正在下载' : '下载文件'}
                     </Button>
                     <Button
                       variant="outline"

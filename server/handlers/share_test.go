@@ -89,6 +89,103 @@ func TestStreamShareMissingFile(t *testing.T) {
 	}
 }
 
+// 确认下载接口会消耗浏览/下载次数，并返回附件形式的响应头，避免前端缓存导致的无限下载。
+func TestDownloadShareConsumesView(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	dbPath := filepath.Join(t.TempDir(), "download.db")
+	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	if err := db.AutoMigrate(&models.User{}, &models.File{}, &models.Share{}); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+
+	owner := models.User{Username: "owner", Role: models.RoleUser, PasswordHash: "x"}
+	if err := db.Create(&owner).Error; err != nil {
+		t.Fatalf("create owner: %v", err)
+	}
+
+	filePath := filepath.Join(t.TempDir(), "file.txt")
+	if err := os.WriteFile(filePath, []byte("hello"), 0o644); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
+	file := models.File{OwnerID: owner.ID, Filename: "file.txt", Path: filePath, Size: 5, MimeType: "text/plain"}
+	if err := db.Create(&file).Error; err != nil {
+		t.Fatalf("create file: %v", err)
+	}
+
+	maxViews := uint(2)
+	share := models.Share{Token: "download-token", FileID: file.ID, CreatorID: owner.ID, RequireLogin: false, MaxViews: &maxViews}
+	if err := db.Create(&share).Error; err != nil {
+		t.Fatalf("create share: %v", err)
+	}
+
+	cfg := &config.Config{JWTSecret: "test-secret"}
+
+	// 第一次下载：应成功且计入 1 次
+	w1 := httptest.NewRecorder()
+	c1, _ := gin.CreateTestContext(w1)
+	req1 := httptest.NewRequest(http.MethodGet, "/api/shares/download-token/download", nil)
+	c1.Request = req1
+	c1.Params = gin.Params{{Key: "token", Value: share.Token}}
+	DownloadShare(db, cfg)(c1)
+
+	if w1.Code != http.StatusOK {
+		t.Fatalf("first download status = %d, body=%s", w1.Code, w1.Body.String())
+	}
+	if disp := w1.Header().Get("Content-Disposition"); !strings.HasPrefix(disp, "attachment;") {
+		t.Fatalf("expected attachment disposition, got %q", disp)
+	}
+
+	var refreshed models.Share
+	if err := db.First(&refreshed, share.ID).Error; err != nil {
+		t.Fatalf("reload share: %v", err)
+	}
+	if refreshed.ViewCount != 1 {
+		t.Fatalf("expected view_count 1, got %d", refreshed.ViewCount)
+	}
+
+	// 第二次下载：命中上限前的最后一次
+	w2 := httptest.NewRecorder()
+	c2, _ := gin.CreateTestContext(w2)
+	req2 := httptest.NewRequest(http.MethodGet, "/api/shares/download-token/download", nil)
+	c2.Request = req2
+	c2.Params = gin.Params{{Key: "token", Value: share.Token}}
+	DownloadShare(db, cfg)(c2)
+
+	if w2.Code != http.StatusOK {
+		t.Fatalf("second download status = %d", w2.Code)
+	}
+
+	if err := db.First(&refreshed, share.ID).Error; err != nil {
+		t.Fatalf("reload share 2: %v", err)
+	}
+	if refreshed.ViewCount != 2 {
+		t.Fatalf("expected view_count 2, got %d", refreshed.ViewCount)
+	}
+
+	// 第三次下载应被限制，返回 410，view_count 不再增加
+	w3 := httptest.NewRecorder()
+	c3, _ := gin.CreateTestContext(w3)
+	req3 := httptest.NewRequest(http.MethodGet, "/api/shares/download-token/download", nil)
+	c3.Request = req3
+	c3.Params = gin.Params{{Key: "token", Value: share.Token}}
+	DownloadShare(db, cfg)(c3)
+
+	if w3.Code != http.StatusGone {
+		t.Fatalf("expected 410 when limit reached, got %d", w3.Code)
+	}
+
+	if err := db.First(&refreshed, share.ID).Error; err != nil {
+		t.Fatalf("reload share 3: %v", err)
+	}
+	if refreshed.ViewCount != 2 {
+		t.Fatalf("view_count should stay at max (2), got %d", refreshed.ViewCount)
+	}
+}
+
 // 验证批量清理：过期、文件缺失与次数耗尽的分享会被删除，正常的保留。
 func TestCleanShares(t *testing.T) {
 	gin.SetMode(gin.TestMode)

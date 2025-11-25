@@ -7,6 +7,10 @@ export const getShareMeta = (token) => api.get(`/shares/${token}`)
 export const streamShare = (token, options = {}) =>
   api.get(`/shares/${token}/stream`, { responseType: 'blob', ...options })
 
+// 以附件形式下载分享文件，后端会计入同一套浏览/下载次数限制
+export const downloadShare = (token, options = {}) =>
+  api.get(`/shares/${token}/download`, { responseType: 'blob', ...options })
+
 // 管理端：列出所有分享（仅管理员可调用）
 export const listShares = () => api.get('/admin/shares')
 

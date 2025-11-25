@@ -185,9 +185,26 @@ func GetShareMeta(db *gorm.DB, cfg *config.Config) gin.HandlerFunc {
 // @Tags shares
 // @Produce octet-stream
 // @Param token path string true "分享 Token"
+// @Param download query bool false "是否以附件形式下载，true 时为 attachment"
 // @Security BearerAuth
 // @Router /shares/{token}/stream [get]
 func StreamShare(db *gorm.DB, cfg *config.Config) gin.HandlerFunc {
+	return streamShareWithDisposition(db, cfg, false)
+}
+
+// DownloadShare 在与预览相同的权限与计数规则下，以附件形式返回内容，避免分享页面无限下载绕过浏览次数。
+// @Summary 下载分享内容（计入浏览/下载次数）
+// @Tags shares
+// @Produce octet-stream
+// @Param token path string true "分享 Token"
+// @Security BearerAuth
+// @Router /shares/{token}/download [get]
+func DownloadShare(db *gorm.DB, cfg *config.Config) gin.HandlerFunc {
+	return streamShareWithDisposition(db, cfg, true)
+}
+
+// streamShareWithDisposition 复用核心校验逻辑，根据 download 标志切换 Content-Disposition，确保预览与下载都计入次数。
+func streamShareWithDisposition(db *gorm.DB, cfg *config.Config, download bool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		share, err := loadShare(db, c.Param("token"))
 		if err != nil {
@@ -242,8 +259,14 @@ func StreamShare(db *gorm.DB, cfg *config.Config) gin.HandlerFunc {
 		}
 		defer file.Close()
 
+		disposition := "inline"
+		// 当 download 为 true 或 query 参数 download=true/1 时，以附件形式下载
+		if download || c.Query("download") == "1" || strings.EqualFold(c.Query("download"), "true") {
+			disposition = "attachment"
+		}
+
 		c.Header("Content-Type", share.File.MimeType)
-		c.Header("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", url.PathEscape(share.File.Filename)))
+		c.Header("Content-Disposition", fmt.Sprintf("%s; filename=\"%s\"", disposition, url.PathEscape(share.File.Filename)))
 		c.Status(http.StatusOK)
 		_, _ = io.Copy(c.Writer, file)
 	}
