@@ -29,7 +29,7 @@ import {
 } from '../components/ui/select'
 import { Textarea } from '../components/ui/textarea'
 import { Label } from '../components/ui/label'
-import { deleteFile, fetchFiles, shareFile, uploadFile } from '../api/files'
+import { deleteFile, downloadFile, fetchFiles, shareFile, uploadFile } from '../api/files'
 import { fetchUsers } from '../api/users'
 import { useAuthStore } from '../store/auth'
 import { toast } from 'sonner'
@@ -423,6 +423,8 @@ const Content = () => {
 	const [pendingDelete, setPendingDelete] = useState(null)
   // 控制当前正在预览的文件，兼顾移动端全屏弹层体验
   const [previewing, setPreviewing] = useState(null)
+	// 记录正在下载的文件 ID，防止重复点击导致多次请求或误判未登录
+	const [downloadingId, setDownloadingId] = useState(null)
 	const [search, setSearch] = useState('')
 	const [ownerFilter, setOwnerFilter] = useState('all')
 	const [typeFilter, setTypeFilter] = useState('all')
@@ -510,10 +512,41 @@ const Content = () => {
 	}
 
   // 过滤空值，防止 SelectItem 出现空字符串导致 Radix 抛错
-  const owners = useMemo(
+	const owners = useMemo(
     () => Array.from(new Set(files.map((f) => f.owner).filter(Boolean))),
     [files]
   )
+
+	// 通过 axios 下载文件，确保带上 Authorization 头，避免新标签页丢失鉴权导致 401
+	const handleDownload = async (file) => {
+		if (!file) return
+		setDownloadingId(file.id)
+		try {
+			const { data } = await downloadFile(file.id, { responseType: 'blob' })
+			const url = URL.createObjectURL(data)
+			const anchor = document.createElement('a')
+			anchor.href = url
+			anchor.download = file.filename
+			anchor.style.display = 'none'
+			document.body.appendChild(anchor)
+			anchor.click()
+			document.body.removeChild(anchor)
+			URL.revokeObjectURL(url)
+		} catch (err) {
+			const status = err.response?.status
+			if (status === 401) {
+				toast.error('需要登录后才能下载', { description: '请重新登录后重试' })
+			} else if (status === 403) {
+				toast.error('无权下载该文件', { description: '请联系文件所有者授权' })
+			} else if (status === 404) {
+				toast.error('文件不存在或已删除')
+			} else {
+				toast.error('下载失败', { description: err.response?.data?.error || err.message })
+			}
+		} finally {
+			setDownloadingId(null)
+		}
+	}
 
 	const handleDelete = async (file) => {
 		const isAdmin = user?.role === 'admin'
@@ -673,19 +706,15 @@ const Content = () => {
                       <div className="flex flex-wrap gap-2 min-w-max">
                         {/* 使用同一 Button 体系包裹链接并补充统一图标，确保下载操作与预览弹窗的下载样式保持一致 */}
                         <Button
-                          asChild
+                          type="button"
                           variant="outline"
                           size="sm"
                           className="gap-1 px-3 py-2"
+                          onClick={() => handleDownload(f)}
+                          disabled={downloadingId === f.id}
                         >
-                          <a
-                            href={`${apiBase}/files/${f.id}/download`}
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            <DownloadCloud className="h-4 w-4" />
-                            下载
-                          </a>
+                          <DownloadCloud className="h-4 w-4" />
+                          {downloadingId === f.id ? '下载中...' : '下载'}
                         </Button>
                         {/* 触发授权预览弹窗，阻止未认证访问器直接命中流接口 */}
                         <Button

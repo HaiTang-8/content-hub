@@ -7,3 +7,5 @@ export const shareFile = (id, payload = {}) => api.post(`/files/${id}/share`, pa
 export const deleteFile = (id) => api.delete(`/files/${id}`)
 // 预览流式获取文件内容，确保携带鉴权头；responseType 留给调用方按需覆写
 export const streamFile = (id, options = {}) => api.get(`/files/${id}/stream`, { responseType: 'blob', ...options })
+// 以附件形式下载文件，统一透传鉴权头，避免新窗口缺失 Authorization 导致 401
+export const downloadFile = (id, options = {}) => api.get(`/files/${id}/download`, { responseType: 'blob', ...options })
