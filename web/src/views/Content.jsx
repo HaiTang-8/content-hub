@@ -458,8 +458,6 @@ const Content = () => {
 		}
 	}
 
-	const apiBase = useMemo(() => import.meta.env.VITE_API_URL || 'http://localhost:8080/api', [])
-
 	const loadFiles = async () => {
 		setLoading(true)
 		try {
@@ -782,7 +780,6 @@ const Content = () => {
       <PreviewDialog
         open={!!previewing}
         file={previewing}
-        apiBase={apiBase}
         onClose={() => setPreviewing(null)}
       />
     </>

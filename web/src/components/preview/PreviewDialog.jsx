@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { X, DownloadCloud } from 'lucide-react'
 import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
-import { streamFile } from '../../api/files'
+import { downloadFile, streamFile } from '../../api/files'
+import { toast } from 'sonner'
 import PreviewImage from './PreviewImage'
 import PreviewVideo from './PreviewVideo'
 import PreviewMarkdown from './PreviewMarkdown'
@@ -38,13 +39,14 @@ const previewLabelMap = {
 
 const emptyPreview = { kind: null, text: '', url: '', mime: '', buffer: null }
 
-const PreviewDialog = ({ open, file, apiBase, onClose }) => {
+const PreviewDialog = ({ open, file, onClose }) => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [preview, setPreview] = useState(emptyPreview)
+  // 独立的下载加载态，避免重复点击导致多次请求或缺失鉴权头
+  const [downloading, setDownloading] = useState(false)
 
   const kind = useMemo(() => detectPreviewKind(file), [file])
-  const downloadUrl = useMemo(() => (file ? `${apiBase}/files/${file.id}/download` : ''), [apiBase, file])
 
   useEffect(() => {
     if (!open || !file) return () => {}
@@ -96,6 +98,37 @@ const PreviewDialog = ({ open, file, apiBase, onClose }) => {
     }
   }, [open, file, kind])
 
+  // 通过授权 API 下载文件，确保携带 Bearer 头，避免新窗口 401
+  const handleDownload = async () => {
+    if (!file) return
+    setDownloading(true)
+    try {
+      const { data } = await downloadFile(file.id, { responseType: 'blob' })
+      const url = URL.createObjectURL(data)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = file.filename
+      anchor.style.display = 'none'
+      document.body.appendChild(anchor)
+      anchor.click()
+      document.body.removeChild(anchor)
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      const status = err.response?.status
+      if (status === 401) {
+        toast.error('需要登录后才能下载', { description: '会话过期时请重新登录' })
+      } else if (status === 403) {
+        toast.error('无权下载该文件', { description: '请联系文件拥有者授权' })
+      } else if (status === 404) {
+        toast.error('文件不存在或已被删除')
+      } else {
+        toast.error('下载失败', { description: err.response?.data?.error || err.message })
+      }
+    } finally {
+      setDownloading(false)
+    }
+  }
+
   if (!open || !file) return null
 
   const renderBody = () => {
@@ -121,7 +154,13 @@ const PreviewDialog = ({ open, file, apiBase, onClose }) => {
     if (preview.kind === 'text') {
       return <PreviewText content={preview.text} />
     }
-    return <PreviewUnsupported downloadUrl={downloadUrl} filename={file.filename} />
+    return (
+      <PreviewUnsupported
+        onDownload={handleDownload}
+        downloading={downloading}
+        filename={file.filename}
+      />
+    )
   }
 
   return (
@@ -142,11 +181,15 @@ const PreviewDialog = ({ open, file, apiBase, onClose }) => {
             >
               {previewLabelMap[kind] || '文件'}
             </Badge>
-            <Button size="sm" variant="outline" className="h-9 px-4" asChild>
-              <a href={downloadUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1">
-                <DownloadCloud className="h-4 w-4" />
-                下载
-              </a>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-9 px-4"
+              onClick={handleDownload}
+              disabled={downloading}
+            >
+              <DownloadCloud className="h-4 w-4" />
+              {downloading ? '下载中...' : '下载'}
             </Button>
             <button
               type="button"
