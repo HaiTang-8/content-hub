@@ -15,55 +15,133 @@ env:
   NODE_VERSION: 22
 
 jobs:
-  build-and-push:
+  prepare-tags:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write    # 兼容推送到 GHCR 时所需；Docker Hub 不依赖此权限。
-
+    outputs:
+      tags: ${{ steps.meta.outputs.tags }}
+      labels: ${{ steps.meta.outputs.labels }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Set up QEMU               # 允许跨架构构建（amd64/arm64）。
-        uses: docker/setup-qemu-action@v3
-
-      - name: Set up Docker Buildx      # 启用 Buildx 以支持多架构与缓存。
-        uses: docker/setup-buildx-action@v3
-
-      - name: Login to registry         # 使用密钥登录仓库，避免匿名推送受限。
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Extract metadata (tags, labels)
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          # 标签策略说明：
-          # - 分支：main -> latest；其他分支 -> <branch>-<sha>
-          # - 标签：v1.2.3 -> v1.2.3
-          # - 回滚/溯源：始终打 sha 标签
+          # 标签策略：main -> latest；tag -> v*；所有构建均带 sha
           tags: |
             type=ref,event=branch
             type=ref,event=tag
             type=sha
             type=raw,value=latest,enable={{is_default_branch}}
 
-      - name: Build and push
+  build-amd64:
+    runs-on: ubuntu-latest
+    needs: prepare-tags
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx      # 仅 x86 平台，无需 QEMU。
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push (amd64)
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          platforms: linux/amd64,linux/arm64   # 同时产出 x86 与 ARM 镜像。
+          platforms: linux/amd64
+          tags: ${{ needs.prepare-tags.outputs.tags }}
+          labels: ${{ needs.prepare-tags.outputs.labels }}
           build-args: |
             VITE_API_URL=${{ env.VITE_API_URL }}
             GO_VERSION=${{ env.GO_VERSION }}
             NODE_VERSION=${{ env.NODE_VERSION }}
           cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache
           cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
+
+  build-arm64:
+    # 使用原生 ARM Runner，避免 QEMU 造成的 10x 放大。
+    runs-on: ubuntu-24.04-arm64
+    needs: prepare-tags
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push (arm64)
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          platforms: linux/arm64
+          tags: ${{ needs.prepare-tags.outputs.tags }}
+          labels: ${{ needs.prepare-tags.outputs.labels }}
+          build-args: |
+            VITE_API_URL=${{ env.VITE_API_URL }}
+            GO_VERSION=${{ env.GO_VERSION }}
+            NODE_VERSION=${{ env.NODE_VERSION }}
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
+
+  merge-manifest:
+    # 合并两架构镜像为一个多平台 manifest，保持原有标签。
+    runs-on: ubuntu-latest
+    needs: [prepare-tags, build-amd64, build-arm64]
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Login to registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Merge manifest and push          # 使用已经生成的单架构镜像 digest 组装多平台 manifest。
+        env:
+          TAGS: ${{ needs.prepare-tags.outputs.tags }}
+          AMD64_DIGEST: ${{ needs.build-amd64.outputs.digest }}
+          ARM64_DIGEST: ${{ needs.build-arm64.outputs.digest }}
+        run: |
+          # 将多行 tags 转成 -t 参数列表。
+          TAG_ARGS=""
+          while IFS= read -r tag; do
+            TAG_ARGS+=" -t ${tag}"
+          done <<< "${TAGS}"
+
+          # 合并 manifest，引用两个已推送的单架构镜像。
+          docker buildx imagetools create \
+            ${TAG_ARGS} \
+            ${AMD64_DIGEST} \
+            ${ARM64_DIGEST}
