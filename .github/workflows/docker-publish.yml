@@ -18,7 +18,7 @@ jobs:
   prepare-tags:
     runs-on: ubuntu-latest
     outputs:
-      tags: ${{ steps.meta.outputs.tags }}
+      tags: ${{ steps.tags.outputs.tags }}
       labels: ${{ steps.meta.outputs.labels }}
     steps:
       - name: Checkout
@@ -35,6 +35,27 @@ jobs:
             type=ref,event=tag
             type=sha
             type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Ensure tag list (fallback to sha)
+        id: tags
+        env:
+          META_TAGS: ${{ steps.meta.outputs.tags }}
+          IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        run: |
+          # metadata-action 在 workflow_dispatch 等事件下可能不给出分支标签，这里兜底提供 sha 标签
+          TAGS="${META_TAGS}"
+          SHA_TAG="${IMAGE}:sha-${GITHUB_SHA::7}"
+          if [ -z "${TAGS}" ]; then
+            TAGS="${SHA_TAG}"
+          else
+            TAGS="${TAGS}\n${SHA_TAG}"
+          fi
+          echo -e "Resolved tags:\n${TAGS}"
+          {
+            echo "tags<<'EOF'"
+            echo -e "${TAGS}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
   build-amd64:
     runs-on: ubuntu-latest
