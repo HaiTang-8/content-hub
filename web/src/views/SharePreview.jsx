@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
-import { AlertTriangle, ArrowLeft, Clock, Eye, Lock, RefreshCw, ShieldCheck, Users } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, Clock, Download, Eye, Lock, RefreshCw, ShieldCheck, Users } from 'lucide-react'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
 import { Badge } from '../components/ui/badge'
@@ -30,6 +30,8 @@ const SharePreview = () => {
   const [textContent, setTextContent] = useState('')
   const [loading, setLoading] = useState(true)
   const [previewLoading, setPreviewLoading] = useState(false)
+  // 预先缓存预览二进制数据，下载时直接复用，避免重复消耗浏览次数
+  const [previewBlob, setPreviewBlob] = useState(null)
   const [error, setError] = useState(null)
 
   // 拉取元信息：受限于登录或指定用户会返回对应错误
@@ -61,10 +63,17 @@ const SharePreview = () => {
     if (!meta) return
     setPreviewLoading(true)
     setTextContent('')
+    setPreviewBlob(null)
+    // 每次重新获取前释放旧的 blob URL，避免多次预览导致内存泄漏
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl)
+      setPreviewUrl('')
+    }
     try {
       const { data } = await streamShare(token, { responseType: 'blob' })
       const url = URL.createObjectURL(data)
       setPreviewUrl(url)
+      setPreviewBlob(data)
 
       // 文本类文件直接解码为字符串，移动端也方便查看与复制
       if (detectType(meta.mime_type, meta.filename) === 'text') {
@@ -89,6 +98,24 @@ const SharePreview = () => {
     } finally {
       setPreviewLoading(false)
     }
+  }
+
+  // 依赖已缓存 blob 发起浏览器下载，确保不会重复请求造成额外次数消耗
+  const handleDownload = () => {
+    if (!previewBlob || !meta) {
+      toast.error('文件尚未加载完成，稍后再试')
+      return
+    }
+
+    const url = URL.createObjectURL(previewBlob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = meta.filename
+    anchor.style.display = 'none'
+    document.body.appendChild(anchor)
+    anchor.click()
+    document.body.removeChild(anchor)
+    URL.revokeObjectURL(url)
   }
 
   useEffect(() => {
@@ -195,10 +222,30 @@ const SharePreview = () => {
         ) : (
           <div className="grid gap-4 lg:grid-cols-[2fr,1fr]">
             <Card className="h-full">
-              <CardHeader className="flex flex-col gap-2">
-                <CardTitle className="flex items-center gap-3 text-lg">
-                  <ShieldCheck className="h-5 w-5 text-primary" /> {meta.filename}
-                </CardTitle>
+              <CardHeader className="flex flex-col gap-3">
+                <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <CardTitle className="flex items-center gap-3 text-lg">
+                    <ShieldCheck className="h-5 w-5 text-primary" /> {meta.filename}
+                  </CardTitle>
+                  <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+                    <Button
+                      variant="secondary"
+                      className="flex-1 gap-2 sm:flex-none"
+                      onClick={handleDownload}
+                      disabled={!previewBlob || previewLoading}
+                    >
+                      <Download className="h-4 w-4" /> 下载文件
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="flex-1 gap-2 sm:flex-none"
+                      onClick={fetchPreview}
+                      disabled={previewLoading}
+                    >
+                      <RefreshCw className="h-4 w-4" /> {previewLoading ? '重新加载中' : '重新加载'}
+                    </Button>
+                  </div>
+                </div>
                 <CardDescription className="flex flex-wrap gap-3 text-sm text-slate-600">
                   <span>分享者：{meta.owner}</span>
                   <span>大小：{(meta.size / 1024).toFixed(1)} KB</span>
