@@ -52,7 +52,7 @@ jobs:
           fi
           echo -e "Resolved tags:\n${TAGS}"
           {
-            echo "tags<<'EOF'"
+            echo "tags<<EOF"
             echo -e "${TAGS}"
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
