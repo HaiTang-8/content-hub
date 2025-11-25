@@ -43,8 +43,9 @@ jobs:
           IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
         run: |
           # metadata-action 在 workflow_dispatch 等事件下可能不给出分支标签，这里兜底提供 sha 标签
-          TAGS="${META_TAGS}"
+          TAGS="$(printf "%s\n" "${META_TAGS}" | sed '/^$/d')" # 去掉空行
           SHA_TAG="${IMAGE}:sha-${GITHUB_SHA::7}"
+          # 若 metadata 无输出，则只用 sha；否则附加 sha 以确保至少 1 个标签
           if [ -z "${TAGS}" ]; then
             TAGS="${SHA_TAG}"
           else
@@ -86,7 +87,7 @@ jobs:
           context: .
           push: true
           platforms: linux/amd64
-          tags: ${{ needs.prepare-tags.outputs.tags }}
+          tags: ${{ needs.prepare-tags.outputs.tags || format('{0}/{1}:sha-{2}', env.REGISTRY, env.IMAGE_NAME, github.sha) }}
           labels: ${{ needs.prepare-tags.outputs.labels }}
           build-args: |
             VITE_API_URL=${{ env.VITE_API_URL }}
@@ -125,7 +126,7 @@ jobs:
           context: .
           push: true
           platforms: linux/arm64
-          tags: ${{ needs.prepare-tags.outputs.tags }}
+          tags: ${{ needs.prepare-tags.outputs.tags || format('{0}/{1}:sha-{2}', env.REGISTRY, env.IMAGE_NAME, github.sha) }}
           labels: ${{ needs.prepare-tags.outputs.labels }}
           build-args: |
             VITE_API_URL=${{ env.VITE_API_URL }}
