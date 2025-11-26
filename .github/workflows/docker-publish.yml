@@ -161,12 +161,24 @@ jobs:
           IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
         run: |
           set -euo pipefail
+          # 若上游输出为空，兜底使用当前提交的 sha 标签。
+          FALLBACK_TAG="${IMAGE}:sha-${GITHUB_SHA::7}"
+          if [ -z "${TAGS}" ]; then
+            TAGS="${FALLBACK_TAG}"
+          fi
+
           # 将多行 tags 转成 -t 参数列表。
           TAG_ARGS=""
           while IFS= read -r tag; do
             [ -z "${tag}" ] && continue
             TAG_ARGS+=" -t ${tag}"
           done <<< "$(printf "%s\n" "${TAGS}")"
+
+          # 若仍为空，终止并提示。
+          if [ -z "${TAG_ARGS}" ]; then
+            echo "no tags resolved; aborting"
+            exit 1
+          fi
 
           # 为 imagetools 使用带仓库名的 digest 引用，避免 pull 权限错误。
           AMD64_REF="${IMAGE}@${AMD64_DIGEST}"
