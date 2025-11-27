@@ -11,6 +11,7 @@ import {
   Copy,
   Eye,
   DownloadCloud,
+  Loader2,
   ShieldCheck,
   Clock,
   Lock,
@@ -728,6 +729,8 @@ const Content = () => {
                 const canDelete = isAdmin || user?.username === f.owner
                 const canShare = isAdmin || user?.username === f.owner
                 const deleteText = '删除'
+                // 标记当前卡片是否在下载中，方便复用并保持按钮宽度稳定
+                const isDownloading = downloadingId === f.id
                 return (
                   <div key={f.id} className="h-full">
                     <Card className="flex h-full flex-col w-full shadow-sm">
@@ -756,6 +759,7 @@ const Content = () => {
                       <span>时间：{dayjs(f.created_at).format('MM/DD HH:mm')}</span>
                     </div>
                     <div className="text-sm text-slate-600">大小：{formatSize(f.size)}</div>
+                    {/* 动作按钮使用紧凑尺寸，桌面端保持单行，移动端可自动换行避免溢出 */}
                     <div className="flex flex-wrap items-center gap-2 md:flex-nowrap">
                       <div className="flex flex-wrap gap-2 min-w-max">
                         {/* 使用同一 Button 体系包裹链接并补充统一图标，确保下载操作与预览弹窗的下载样式保持一致 */}
@@ -763,19 +767,28 @@ const Content = () => {
                           type="button"
                           variant="outline"
                           size="sm"
-                          className="gap-1 px-3 py-2"
+                          className="gap-1 px-2.5 h-8 text-[12px] leading-none justify-center whitespace-nowrap"
                           onClick={() => handleDownload(f)}
-                          disabled={downloadingId === f.id}
+                          disabled={isDownloading}
                         >
-                          <DownloadCloud className="h-4 w-4" />
-                          {downloadingId === f.id ? '下载中...' : '下载'}
+                          {isDownloading ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              下载中
+                            </>
+                          ) : (
+                            <>
+                              <DownloadCloud className="h-4 w-4" />
+                              下载
+                            </>
+                          )}
                         </Button>
                         {/* 触发授权预览弹窗，阻止未认证访问器直接命中流接口 */}
                         <Button
                           type="button"
                           variant="outline"
                           size="sm"
-                          className="gap-1 px-3 py-2"
+                          className="gap-1 px-2.5 h-8 text-[12px] leading-none"
                           onClick={() => setPreviewing(f)}
                         >
                           <Eye className="h-4 w-4" />
@@ -784,7 +797,12 @@ const Content = () => {
                       </div>
                       <div className="flex gap-2 flex-nowrap flex-shrink-0">
 	                        {canShare && (
-	                          <Button type="button" size="sm" onClick={() => startShare(f)} className="gap-2 whitespace-nowrap">
+	                          <Button
+	                            type="button"
+	                            size="sm"
+	                            onClick={() => startShare(f)}
+	                            className="gap-1.5 px-2.5 h-8 text-[12px] leading-none whitespace-nowrap"
+	                          >
 		                        <Share2 className="h-4 w-4" />
 		                        分享
 	                          </Button>
@@ -795,7 +813,7 @@ const Content = () => {
                             size="sm"
                             type="button"
                             onClick={() => setPendingDelete(f)}
-                            className="gap-2 whitespace-nowrap"
+                            className="gap-1.5 px-2.5 h-8 text-[12px] leading-none whitespace-nowrap"
                           >
                             <Trash2 className="h-4 w-4" />
                             {deleteText}
