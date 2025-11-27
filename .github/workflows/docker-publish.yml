@@ -28,6 +28,29 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Resolve release tag
+        id: release_tag
+        env:
+          IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+        run: |
+          set -euo pipefail
+          TAG=""
+          if [ "${GITHUB_EVENT_NAME}" = "push" ] && [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            TAG="${GITHUB_REF_NAME}"
+          elif [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            TAG="${INPUT_TAG}"
+          fi
+
+          if [ -z "${TAG}" ]; then
+            echo "未解析到有效发布标签（推送 tag 或手动输入 tag）。" >&2
+            exit 1
+          fi
+
+          echo "Resolved tag: ${TAG}"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "image_tag=${IMAGE}:${TAG}" >> "$GITHUB_OUTPUT"
+
       - name: Extract metadata (tags, labels)
         id: meta
         uses: docker/metadata-action@v5
@@ -35,26 +58,20 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           # 标签策略：仅使用语义化 tag 或手动输入的 tag，不再自动生成 sha-*。
           tags: |
-            type=ref,event=tag
-            type=raw,value=${{ github.event.inputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' }}
+            type=raw,value=${{ steps.release_tag.outputs.tag }}
 
       - name: Ensure tag list (fallback to input tag)
         id: tags
         env:
           META_TAGS: ${{ steps.meta.outputs.tags }}
           IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          INPUT_TAG: ${{ github.event.inputs.tag }}
         run: |
-          # 收集 metadata-action 生成的标签；手动触发时如未返回则使用输入值。
+          # 收集 metadata-action 生成的标签，并确保非空。
           TAGS="$(printf "%s\n" "${META_TAGS}" | sed '/^$/d')" # 去掉空行
 
           if [ -z "${TAGS}" ]; then
-            if [ -n "${INPUT_TAG}" ]; then
-              TAGS="${IMAGE}:${INPUT_TAG}"
-            else
-              echo "未解析到任何有效标签，请通过 tag 推送或在手动触发时填写 tag 输入。" >&2
-              exit 1
-            fi
+            echo "metadata-action 未返回有效标签，发布终止。" >&2
+            exit 1
           fi
           echo -e "Resolved tags:\n${TAGS}"
           {
