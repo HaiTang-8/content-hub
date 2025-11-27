@@ -3,9 +3,13 @@ name: docker-publish
 
 on:
   push:
-    branches: [main]     # 业务默认分支；如使用其他默认分支，请同步修改。
-    tags: ["v*"]         # 打 tag 时产出版本镜像。
-  workflow_dispatch:      # 手动触发，便于紧急重推或测试。
+    tags: ["v*"]         # 仅在推送语义化版本标签时触发，镜像标签与 Git tag 对齐。
+  workflow_dispatch:      # 手动触发需要显式输入 tag，避免生成 sha-* 临时标签。
+    inputs:
+      tag:
+        description: "发布的 Docker 标签（例如 v1.2.3）"
+        required: true
+        type: string
 
 env:
   REGISTRY: docker.io
@@ -29,27 +33,28 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          # 标签策略：main -> latest；tag -> v*；所有构建均带 sha
+          # 标签策略：仅使用语义化 tag 或手动输入的 tag，不再自动生成 sha-*。
           tags: |
-            type=ref,event=branch
             type=ref,event=tag
-            type=sha
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=${{ github.event.inputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' }}
 
-      - name: Ensure tag list (fallback to sha)
+      - name: Ensure tag list (fallback to input tag)
         id: tags
         env:
           META_TAGS: ${{ steps.meta.outputs.tags }}
           IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          INPUT_TAG: ${{ github.event.inputs.tag }}
         run: |
-          # metadata-action 在 workflow_dispatch 等事件下可能不给出分支标签，这里兜底提供 sha 标签
+          # 收集 metadata-action 生成的标签；手动触发时如未返回则使用输入值。
           TAGS="$(printf "%s\n" "${META_TAGS}" | sed '/^$/d')" # 去掉空行
-          SHA_TAG="${IMAGE}:sha-${GITHUB_SHA::7}"
-          # 若 metadata 无输出，则只用 sha；否则附加 sha 以确保至少 1 个标签
+
           if [ -z "${TAGS}" ]; then
-            TAGS="${SHA_TAG}"
-          else
-            TAGS="${TAGS}\n${SHA_TAG}"
+            if [ -n "${INPUT_TAG}" ]; then
+              TAGS="${IMAGE}:${INPUT_TAG}"
+            else
+              echo "未解析到任何有效标签，请通过 tag 推送或在手动触发时填写 tag 输入。" >&2
+              exit 1
+            fi
           fi
           echo -e "Resolved tags:\n${TAGS}"
           {
@@ -87,7 +92,7 @@ jobs:
           context: .
           push: true
           platforms: linux/amd64
-          tags: ${{ needs.prepare-tags.outputs.tags || format('{0}/{1}:sha-{2}', env.REGISTRY, env.IMAGE_NAME, github.sha) }}
+          tags: ${{ needs.prepare-tags.outputs.tags }}   # 标签已在 prepare-tags 阶段校验，不再回落 sha。
           labels: ${{ needs.prepare-tags.outputs.labels }}
           build-args: |
             VITE_API_URL=${{ env.VITE_API_URL }}
@@ -129,7 +134,7 @@ jobs:
           context: .
           push: true
           platforms: linux/arm64
-          tags: ${{ needs.prepare-tags.outputs.tags || format('{0}/{1}:sha-{2}', env.REGISTRY, env.IMAGE_NAME, github.sha) }}
+          tags: ${{ needs.prepare-tags.outputs.tags }}   # 标签已在 prepare-tags 阶段校验，不再回落 sha。
           labels: ${{ needs.prepare-tags.outputs.labels }}
           build-args: |
             VITE_API_URL=${{ env.VITE_API_URL }}
@@ -161,10 +166,10 @@ jobs:
           IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
         run: |
           set -euo pipefail
-          # 若上游输出为空，兜底使用当前提交的 sha 标签。
-          FALLBACK_TAG="${IMAGE}:sha-${GITHUB_SHA::7}"
+          # prepare-tags 已确保 TAGS 非空；此处仅再次防御性检查。
           if [ -z "${TAGS}" ]; then
-            TAGS="${FALLBACK_TAG}"
+            echo "未检测到有效标签，终止发布。" >&2
+            exit 1
           fi
 
           # 将多行 tags 转成 -t 参数列表。
