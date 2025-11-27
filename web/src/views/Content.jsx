@@ -65,6 +65,7 @@ const UploadModal = ({ open, onClose, onUploaded }) => {
   const [text, setText] = useState('')
   const [description, setDescription] = useState('')
   const [uploading, setUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState(null)
   const [isDraggingFile, setIsDraggingFile] = useState(false)
 
   // 统一封装文件选择逻辑，供点击选择和拖拽两种方式复用
@@ -104,12 +105,24 @@ const UploadModal = ({ open, onClose, onUploaded }) => {
       return
     }
     setUploading(true)
+    // 初始化进度为 0，若无法获取文件总大小则后续降级为不定进度条
+    setUploadProgress(0)
     const form = new FormData()
     if (file) form.append('file', file)
     if (text) form.append('text', text)
     if (description) form.append('description', description)
     try {
-      await uploadFile(form)
+      await uploadFile(form, (event) => {
+        // axios 在提供 total 时才计算百分比，否则保持 null 以展示“计算中”占位
+        if (!event.total) {
+          setUploadProgress(null)
+          return
+        }
+        const percent = Math.min(100, Math.round((event.loaded / event.total) * 100))
+        setUploadProgress(percent)
+      })
+      // 请求结束后明确标记 100%，便于移动端也能看到完成态
+      setUploadProgress(100)
       setFile(null)
       setText('')
       setDescription('')
@@ -124,6 +137,8 @@ const UploadModal = ({ open, onClose, onUploaded }) => {
       })
     } finally {
       setUploading(false)
+      // 关闭或下次打开弹窗前清理进度，避免残留上一次的数值
+      setUploadProgress(null)
     }
   }
 
@@ -163,6 +178,13 @@ const UploadModal = ({ open, onClose, onUploaded }) => {
             <Textarea rows={3} placeholder="若不选文件，可直接输入文字" value={text} onChange={(e) => setText(e.target.value)} />
           </div>
           <Input placeholder="描述 (可选)" value={description} onChange={(e) => setDescription(e.target.value)} />
+          {uploading && (
+            <DownloadProgress
+              percent={uploadProgress}
+              label={uploadProgress === 100 ? '上传完成' : '上传中'}
+              className="pt-1"
+            />
+          )}
           <div className="flex justify-end gap-2">
             <Button variant="outline" type="button" onClick={onClose}>
               取消
