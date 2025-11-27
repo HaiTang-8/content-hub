@@ -22,7 +22,7 @@ jobs:
   prepare-tags:
     runs-on: ubuntu-latest
     outputs:
-      tags: ${{ steps.tags.outputs.tags }}
+      tags: ${{ steps.set_tags.outputs.tags }}
       labels: ${{ steps.meta.outputs.labels }}
     steps:
       - name: Checkout
@@ -60,25 +60,17 @@ jobs:
           tags: |
             type=raw,value=${{ steps.release_tag.outputs.tag }}
 
-      - name: Ensure tag list (fallback to input tag)
-        id: tags
+      - name: Export resolved tags
+        id: set_tags
         env:
-          META_TAGS: ${{ steps.meta.outputs.tags }}
-          IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          IMAGE_TAG: ${{ steps.release_tag.outputs.image_tag }}
         run: |
-          # 收集 metadata-action 生成的标签，并确保非空。
-          TAGS="$(printf "%s\n" "${META_TAGS}" | sed '/^$/d')" # 去掉空行
-
-          if [ -z "${TAGS}" ]; then
-            echo "metadata-action 未返回有效标签，发布终止。" >&2
+          if [ -z "${IMAGE_TAG}" ]; then
+            echo "未获得有效的镜像标签" >&2
             exit 1
           fi
-          echo -e "Resolved tags:\n${TAGS}"
-          {
-            echo "tags<<EOF"
-            echo -e "${TAGS}"
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
+          echo "Resolved tags: ${IMAGE_TAG}"
+          echo "tags=${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
 
   build-amd64:
     runs-on: ubuntu-latest
@@ -109,7 +101,7 @@ jobs:
           context: .
           push: true
           platforms: linux/amd64
-          tags: ${{ needs.prepare-tags.outputs.tags }}   # 标签已在 prepare-tags 阶段校验，不再回落 sha。
+          tags: ${{ needs.prepare-tags.outputs.tags }}   # 单一显式标签，来自 Git tag 或手动输入。
           labels: ${{ needs.prepare-tags.outputs.labels }}
           build-args: |
             VITE_API_URL=${{ env.VITE_API_URL }}
@@ -151,7 +143,7 @@ jobs:
           context: .
           push: true
           platforms: linux/arm64
-          tags: ${{ needs.prepare-tags.outputs.tags }}   # 标签已在 prepare-tags 阶段校验，不再回落 sha。
+          tags: ${{ needs.prepare-tags.outputs.tags }}   # 单一显式标签，来自 Git tag 或手动输入。
           labels: ${{ needs.prepare-tags.outputs.labels }}
           build-args: |
             VITE_API_URL=${{ env.VITE_API_URL }}
