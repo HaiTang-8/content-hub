@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title desc">
+  <title id="title">Content Hub</title>
+  <desc id="desc">Stylized C and H logomark for Content Hub</desc>
+  <defs>
+    <linearGradient id="g" x1="10" y1="6" x2="54" y2="58" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2563eb" />
+      <stop offset="1" stop-color="#22d3ee" />
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="#0b1224" />
+  <!-- 放大标识使 favicon 在标签栏中更醒目，围绕中心缩放避免裁剪 -->
+  <g transform="translate(32 32) scale(1.2) translate(-32 -32)">
+    <path fill="url(#g)" d="M20 16c-3.3 0-6 2.7-6 6v20c0 3.3 2.7 6 6 6h12v-8H22V24h10v-8H20zm24 0H32v8h8v20h-8v8h12c3.3 0 6-2.7 6-6V22c0-3.3-2.7-6-6-6z" />
+  </g>
+</svg>
